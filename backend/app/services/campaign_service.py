@@ -4,8 +4,12 @@ from app.models.campaign import Campaign, CampaignStatus, CampaignChannel
 from app.models.contact import Contact
 from datetime import datetime
 import asyncio
+import logging
 from fastapi import BackgroundTasks
 from app.models.project import Project
+from app.gateways.email_gateway import EmailGateway
+
+logger = logging.getLogger(__name__)
 
 class CampaignService:
     @staticmethod
@@ -135,7 +139,6 @@ class CampaignService:
                 campaign.failed_count += 1
             
             await db.commit()
-            await asyncio.sleep(0.1) # Throttling for local demo
 
         # 5. Finalize
         if campaign.status != CampaignStatus.STOPPED:
@@ -143,22 +146,29 @@ class CampaignService:
             await db.commit()
 
     @staticmethod
-    async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None):
-        """
-        Concrete delivery logic for different channels.
-        """
-        sender_info = "Default System"
-        if project and campaign.channel == CampaignChannel.EMAIL:
-            conf = project.email_config or {}
-            sender_name = conf.get("sender_name") or project.name
-            sender_email = conf.get("sender") or conf.get("user")
-            sender_info = f'"{sender_name}" <{sender_email}>'
+    async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None) -> bool:
+        """Deliver one message via the appropriate channel gateway."""
+        if campaign.channel == CampaignChannel.EMAIL:
+            if not contact.email:
+                return False
+            conf = (project.email_config or {}) if project else {}
+            gateway = EmailGateway(conf)
+            result = await gateway.send_single(
+                recipient=contact.email,
+                message=campaign.content,
+                context={"subject": campaign.subject or campaign.name},
+            )
+            if not result["success"]:
+                logger.warning(
+                    "[Campaign %d] Email to %s failed: %s",
+                    campaign.id, contact.email, result.get("error"),
+                )
+            return result["success"]
 
-        # Placeholder for real API calls (Twilio, FCM, SMTP)
-        print(f"[CAMPAIGN {campaign.id}] [SENDER: {sender_info}] Sending {campaign.channel} to {contact.user_name or 'Unknown'}...")
-        
-        # Simulating SMTP/API delay
+        # SMS / Push / WhatsApp — placeholders until those gateways are built
+        logger.info(
+            "[Campaign %d] Simulated %s send to contact %d",
+            campaign.id, campaign.channel, contact.id,
+        )
         await asyncio.sleep(0.05)
-        
-        # Always return True for now in placeholder mode
         return True
