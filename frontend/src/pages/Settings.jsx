@@ -35,7 +35,7 @@ const Settings = () => {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [activeProject]);
 
   const fetchSettings = async () => {
     try {
@@ -53,7 +53,12 @@ const Settings = () => {
         app_name: globalRes.data?.app_name || 'OCAP',
         copyright_text: globalRes.data?.copyright_text || '',
         primary_color: globalRes.data?.primary_color || '#6366f1',
-        email_config: projectData.email_config || { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'us-east-1', aws_access_key_id: '', aws_secret_access_key: '' },
+        email_config: {
+          provider: 'smtp', host: '', port: 587, user: '', password: '',
+          sender: '', sender_name: '', aws_region: 'us-east-1',
+          aws_access_key_id: '', aws_secret_access_key: '',
+          ...(projectData.email_config || {})
+        },
         sms_config: projectData.sms_config || { provider: 'twilio', sid: '', token: '', from: '' },
         whatsapp_config: projectData.whatsapp_config || { phone_id: '', token: '', provider: 'meta' },
         push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' }
@@ -74,8 +79,8 @@ const Settings = () => {
         primary_color: formData.primary_color
       });
 
-      // Save project settings if applicable
-      if (activeProject && activeTab !== 'general') {
+      // Always save project channel settings when a project is active
+      if (activeProject) {
         await api.put(`/settings/project/${activeProject.id}`, {
           email_config: formData.email_config,
           sms_config: formData.sms_config,
@@ -179,7 +184,7 @@ const Settings = () => {
         {/* Sidebar Nav */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <TabButton id="general" label="General Branding" icon={LayoutIcon} />
-          <TabButton id="email" label="Email (SMTP)" icon={Mail} />
+          <TabButton id="email" label="Email" icon={Mail} />
           <TabButton id="sms" label="SMS Gateway" icon={MessageSquare} />
           <TabButton id="whatsapp" label="WhatsApp API" icon={Globe} />
           <TabButton id="push" label="Push Notifications" icon={Bell} />
