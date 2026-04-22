@@ -87,8 +87,9 @@ class SESGateway(BaseGateway):
 
         return (
             False,
-            f"Sender '{self.from_address}' is not verified in SES. "
-            "Please verify your email or domain in the AWS SES console.",
+            f"Sender '{self.from_address}' is not verified in SES region '{self.region}'. "
+            f"Make sure you verified the identity in the correct region (currently checking '{self.region}'). "
+            "Go to AWS Console → SES → Verified identities to confirm.",
         )
 
     # ------------------------------------------------------------------

@@ -27,7 +27,7 @@ const Settings = () => {
     app_name: 'OCAP',
     copyright_text: '© 2026 OCAP',
     primary_color: '#6366f1',
-    email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'us-east-1', aws_access_key_id: '', aws_secret_access_key: '' },
+    email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
     whatsapp_config: { phone_id: '', token: '', provider: 'meta' },
     push_config: { server_key: '', vapid_public: '', vapid_private: '' }
@@ -55,7 +55,7 @@ const Settings = () => {
         primary_color: globalRes.data?.primary_color || '#6366f1',
         email_config: {
           provider: 'smtp', host: '', port: 587, user: '', password: '',
-          sender: '', sender_name: '', aws_region: 'us-east-1',
+          sender: '', sender_name: '', aws_region: 'ap-south-1',
           aws_access_key_id: '', aws_secret_access_key: '',
           ...(projectData.email_config || {})
         },
