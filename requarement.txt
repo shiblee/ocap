@@ -1,0 +1,77 @@
+Multi-channel messaging: Email, SMS, WhatsApp, Push Notifications from a unified interface
+Bulk customer import: CSV/Excel upload with validation, deduplication, and enrichment
+Intelligent scheduler: Cron-based and event-driven triggers with timezone awareness
+Real-time analytics: Delivery, bounce, tracking
+
+2. System Requirements
+2.1 Functional Requirements
+2.1.1 Customer Data Management
+• Upload customer lists via CSV, Excel (.xlsx), or JSON with up to 5 million records per file
+• Validate fields including email addresses, phone numbers, and device tokens on import
+• Deduplicate contacts based on configurable primary key (email, phone, external ID)
+• Tag and segment customers into named lists, dynamic segments, or ad-hoc filters (Project Specific data-management)
+• Maintain a full audit log of data uploads, modifications, and deletions
+• Support GDPR/DPDP-compliant opt-in/opt-out tracking per channel per contact
+ 
+2.1.2 Communication Campaign Management
+• Create, preview, and save message templates for each channel with variable substitution
+• Configure sender identity (From name, email domain, phone number, app ID) per campaign
+• Schedule campaigns at a specific date/time in any IANA timezone (GMT Timezone +5:30) – Summer & Winter Adjustment 
+• Support both one-time and recurring campaign schedules (daily, weekly, custom cron)
+• Allow A/B testing of message variants with configurable traffic splits
+• Pause, resume, or cancel in-progress campaigns without data loss
+ 
+2.1.3 Batch Processing & Delivery Engine
+• Divide recipient lists into configurable batches (default: 500 recipients per batch)
+• Apply per-channel rate limits: Email ≤100/sec, SMS ≤50/sec, WhatsApp ≤80/sec, Push ≤1000/sec
+• Implement exponential backoff retry for transient failures (3 attempts, max 15-min delay)
+• Provide circuit-breaker per provider: auto-suspend if error rate exceeds 5% in 60 seconds
+• Support parallel batch execution with configurable worker concurrency
+ 
+2.1.4 Analytics & Reporting
+• Track delivery status: queued, sending, delivered, failed, bounced, complained
+• Email-specific tracking: open events (pixel), click events (redirect URL), unsubscribes
+• SMS/WhatsApp tracking: delivery receipts via provider webhooks
+• Push notification tracking: delivered, opened, dismissed via SDK callbacks
+• Export reports in CSV/PDF for any campaign or date range
+
+3.2 Core Microservices
+Campaign Service
+Manages the lifecycle of communication campaigns. Exposes CRUD APIs for campaign creation, modification, and status management. Validates campaign parameters, resolves the target audience from the Contact Service, and publishes campaign-ready events to the Job Queue for the Scheduler Service to consume.
+ 
+Contact & List Service
+Handles all customer data operations. Accepts file uploads, streams records through a validation pipeline, persists to the contact store, and provides query APIs for audience resolution. Also manages subscription status, preference history, and suppression lists (global unsubscribes, bounces, complaints).
+ 
+Template Service
+Stores message templates for all channels. Provides a Handlebars/Jinja2-compatible variable substitution engine so that fields like {{first_name}}, {{order_id}}, or {{coupon_code}} are merged at send time with per-recipient data. Templates are versioned; campaigns always reference a specific version.
+ 
+Scheduler Service
+The scheduling engine listens for campaign events and manages the send timeline. At the configured send time it triggers the Campaign Execution Service to begin batch partitioning. It supports one-time schedules, recurring cron expressions, timezone-aware delivery, and "send in local time" (sending at 12:00 PM in each recipient's timezone by bucketing by timezone offset).
+ 
+Execution & Batch Engine
+The heart of the delivery pipeline. On trigger, it queries the audience, splits records into batches, and pushes each batch as an independent job to the appropriate channel queue (email-queue, sms-queue, whatsapp-queue, push-queue). It enforces rate limits using Redis token-bucket counters and tracks batch-level progress in the job store.
+ 
+Analytics & Event Service
+Consumes delivery status events from all channel workers and provider webhooks. Aggregates metrics in real time using stream processing. Stores granular event logs in a time-series-friendly structure (PostgreSQL with TimescaleDB extension or ClickHouse for large deployments). Exposes reporting APIs and powers the dashboard.
+ 
+3.3 Data Flow — Sending a Campaign
+1. User uploads customer CSV → Contact Service validates, deduplicates, and stores contacts
+2. User creates a campaign, selects audience, channel, template, and schedule via UI/API
+3. Campaign Service saves the campaign with status DRAFT and links template + audience
+4. User activates the campaign → status becomes SCHEDULED; Scheduler Service registers the job
+5. At the scheduled time the Scheduler triggers the Execution Engine
+6. Execution Engine queries the audience (applying opt-out suppression), splits into batches
+7. Batches are pushed to the appropriate channel queue (e.g., email-queue)
+8. Channel Workers consume batches, render templates per recipient, call provider APIs
+9. Provider APIs (SES, Twilio, Meta, FCM) deliver messages; webhooks return delivery events
+10. Events are ingested by the Analytics Service and surfaced in the dashboard
+
+
+Technology Stack
+Backend Services : Python (FastAPI)
+Frontend: react
+Database: PostgreSQL 
+Cache: redis
+Message Queue: celery
+Analytics Store: ClickHouse
+Search / Filter : Elasticsearch
