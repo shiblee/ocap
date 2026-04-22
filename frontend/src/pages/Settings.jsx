@@ -27,7 +27,7 @@ const Settings = () => {
     app_name: 'OCAP',
     copyright_text: '© 2026 OCAP',
     primary_color: '#6366f1',
-    email_config: { host: '', port: '', user: '', password: '', sender: '', sender_name: '' },
+    email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'us-east-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
     whatsapp_config: { phone_id: '', token: '', provider: 'meta' },
     push_config: { server_key: '', vapid_public: '', vapid_private: '' }
@@ -53,7 +53,7 @@ const Settings = () => {
         app_name: globalRes.data?.app_name || 'OCAP',
         copyright_text: globalRes.data?.copyright_text || '',
         primary_color: globalRes.data?.primary_color || '#6366f1',
-        email_config: projectData.email_config || { host: '', port: '', user: '', password: '', sender: '', sender_name: '' },
+        email_config: projectData.email_config || { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'us-east-1', aws_access_key_id: '', aws_secret_access_key: '' },
         sms_config: projectData.sms_config || { provider: 'twilio', sid: '', token: '', from: '' },
         whatsapp_config: projectData.whatsapp_config || { phone_id: '', token: '', provider: 'meta' },
         push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' }
@@ -220,36 +220,113 @@ const Settings = () => {
 
               {activeTab === 'email' && (
                 <section>
+                  {/* Header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                     <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Mail size={20} color="#6366f1" /> SMTP Configuration
+                      <Mail size={20} color="#6366f1" /> Email Configuration
                     </h3>
                     <TestButton channel="email" />
                   </div>
+
+                  {/* Provider Toggle */}
+                  <div style={{ marginBottom: '28px' }}>
+                    <label style={labelStyle}>Email Provider</label>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      {[
+                        { value: 'smtp', label: '✉️  SMTP', desc: 'Gmail, SendGrid, Mailgun…' },
+                        { value: 'ses',  label: '☁️  AWS SES', desc: 'Amazon Simple Email Service' },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setFormData({ ...formData, email_config: { ...formData.email_config, provider: opt.value } })}
+                          style={{
+                            flex: 1, padding: '14px 16px', borderRadius: '12px', cursor: 'pointer',
+                            border: formData.email_config.provider === opt.value
+                              ? '2px solid #6366f1'
+                              : '1px solid rgba(255,255,255,0.1)',
+                            background: formData.email_config.provider === opt.value
+                              ? 'rgba(99,102,241,0.15)'
+                              : 'rgba(15,23,42,0.4)',
+                            textAlign: 'left', transition: 'all 0.2s',
+                          }}
+                        >
+                          <div style={{ color: formData.email_config.provider === opt.value ? '#a5b4fc' : '#fff', fontWeight: '700', fontSize: '14px' }}>{opt.label}</div>
+                          <div style={{ color: '#64748b', fontSize: '12px', marginTop: '3px' }}>{opt.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Common fields */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={labelStyle}>Sender Business Name</label>
                       <input style={inputStyle} placeholder="e.g. Acme Corp Support" value={formData.email_config.sender_name} onChange={e => setFormData({...formData, email_config: {...formData.email_config, sender_name: e.target.value}})} />
                     </div>
-                    <div>
-                      <label style={labelStyle}>Sender Email</label>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={labelStyle}>Sender Email (From Address)</label>
                       <input style={inputStyle} placeholder="hello@yourbrand.com" value={formData.email_config.sender} onChange={e => setFormData({...formData, email_config: {...formData.email_config, sender: e.target.value}})} />
                     </div>
-                    <div>
-                      <label style={labelStyle}>SMTP Host</label>
-                      <input style={inputStyle} placeholder="smtp.gmail.com" value={formData.email_config.host} onChange={e => setFormData({...formData, email_config: {...formData.email_config, host: e.target.value}})} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Username</label>
-                      <input style={inputStyle} value={formData.email_config.user} onChange={e => setFormData({...formData, email_config: {...formData.email_config, user: e.target.value}})} />
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                      <label style={labelStyle}>Password</label>
-                      <input type={showPassword ? "text" : "password"} style={inputStyle} value={formData.email_config.password} onChange={e => setFormData({...formData, email_config: {...formData.email_config, password: e.target.value}})} />
-                      <button onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
+
+                    {/* ── SMTP fields ── */}
+                    {formData.email_config.provider === 'smtp' && (<>
+                      <div>
+                        <label style={labelStyle}>SMTP Host</label>
+                        <input style={inputStyle} placeholder="smtp.gmail.com" value={formData.email_config.host} onChange={e => setFormData({...formData, email_config: {...formData.email_config, host: e.target.value}})} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>SMTP Port</label>
+                        <input style={inputStyle} placeholder="587" value={formData.email_config.port} onChange={e => setFormData({...formData, email_config: {...formData.email_config, port: e.target.value}})} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Username</label>
+                        <input style={inputStyle} value={formData.email_config.user} onChange={e => setFormData({...formData, email_config: {...formData.email_config, user: e.target.value}})} />
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <label style={labelStyle}>Password / App Password</label>
+                        <input type={showPassword ? "text" : "password"} style={inputStyle} value={formData.email_config.password} onChange={e => setFormData({...formData, email_config: {...formData.email_config, password: e.target.value}})} />
+                        <button onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </>)}
+
+                    {/* ── AWS SES fields ── */}
+                    {formData.email_config.provider === 'ses' && (<>
+                      <div>
+                        <label style={labelStyle}>AWS Region</label>
+                        <select
+                          style={{ ...inputStyle, cursor: 'pointer' }}
+                          value={formData.email_config.aws_region}
+                          onChange={e => setFormData({...formData, email_config: {...formData.email_config, aws_region: e.target.value}})}
+                        >
+                          {['us-east-1','us-east-2','us-west-1','us-west-2','eu-west-1','eu-west-2','eu-west-3','eu-central-1','ap-south-1','ap-southeast-1','ap-southeast-2','ap-northeast-1','ca-central-1'].map(r => (
+                            <option key={r} value={r} style={{ background: '#1e293b' }}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: 'span 1' }}>
+                        {/* spacer */}
+                      </div>
+                      <div>
+                        <label style={labelStyle}>AWS Access Key ID</label>
+                        <input style={inputStyle} placeholder="AKIA…" value={formData.email_config.aws_access_key_id} onChange={e => setFormData({...formData, email_config: {...formData.email_config, aws_access_key_id: e.target.value}})} />
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <label style={labelStyle}>AWS Secret Access Key</label>
+                        <input type={showPassword ? "text" : "password"} style={inputStyle} placeholder="••••••••" value={formData.email_config.aws_secret_access_key} onChange={e => setFormData({...formData, email_config: {...formData.email_config, aws_secret_access_key: e.target.value}})} />
+                        <button onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                      {/* SES info banner */}
+                      <div style={{ gridColumn: 'span 2', padding: '14px 18px', borderRadius: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', fontSize: '13px', color: '#94a3b8', lineHeight: '1.7' }}>
+                        <span style={{ color: '#a5b4fc', fontWeight: '700' }}>AWS SES setup checklist:</span><br />
+                        1. Verify your sender email or domain in <strong style={{ color: '#cbd5e1' }}>AWS Console → SES → Verified identities</strong><br />
+                        2. Create SMTP / IAM credentials with <strong style={{ color: '#cbd5e1' }}>ses:SendEmail</strong> permission<br />
+                        3. Move out of SES Sandbox to send to non-verified addresses (request in AWS console)
+                      </div>
+                    </>)}
                   </div>
                 </section>
               )}

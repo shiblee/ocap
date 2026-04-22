@@ -8,6 +8,7 @@ import logging
 from fastapi import BackgroundTasks
 from app.models.project import Project
 from app.gateways.email_gateway import EmailGateway
+from app.gateways.ses_gateway import SESGateway
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ class CampaignService:
             if not contact.email:
                 return False
             conf = (project.email_config or {}) if project else {}
-            gateway = EmailGateway(conf)
+            gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
             result = await gateway.send_single(
                 recipient=contact.email,
                 message=campaign.content,

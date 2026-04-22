@@ -47,4 +47,9 @@ class Settings(BaseSettings):
     MAIL_RETRY_BACKOFF: float = 2.0       # multiplier for retry wait (2s, 4s, 8s)
     MAIL_CONNECTION_TIMEOUT: int = 30     # SMTP connect/login timeout in seconds
 
+    # AWS SES (used when project email_config provider == "ses")
+    AWS_REGION: str = "us-east-1"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+
 settings = Settings()

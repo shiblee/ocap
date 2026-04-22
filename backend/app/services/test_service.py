@@ -2,41 +2,53 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.project import Project
 from app.gateways.email_gateway import EmailGateway
+from app.gateways.ses_gateway import SESGateway
+
 
 class TestService:
     @staticmethod
     async def test_email(db: AsyncSession, project_id: int, recipient: str):
-        result = await db.execute(select(Project).where(Project.id == project_id))
-        project = result.scalar_one_or_none()
+        res = await db.execute(select(Project).where(Project.id == project_id))
+        project = res.scalar_one_or_none()
 
         if not project or not project.email_config:
             return False, "Email configuration not found for this project."
 
         conf = project.email_config
-        if not conf.get("host") or not conf.get("user") or not conf.get("password"):
-            return False, "Incomplete SMTP config — host, user, and password are required."
+        provider = conf.get("provider", "smtp")
 
-        gateway = EmailGateway(conf)
+        if provider == "ses":
+            if not conf.get("aws_access_key_id") or not conf.get("aws_secret_access_key"):
+                return False, "Incomplete SES config — AWS Access Key ID and Secret Access Key are required."
+            if not conf.get("sender"):
+                return False, "Incomplete SES config — Sender Email is required."
+            gateway = SESGateway(conf)
+            provider_label = "AWS SES"
+        else:
+            if not conf.get("host") or not conf.get("user") or not conf.get("password"):
+                return False, "Incomplete SMTP config — host, user, and password are required."
+            gateway = EmailGateway(conf)
+            provider_label = "SMTP"
 
-        # Verify credentials before sending
         ok, msg = await gateway.verify_connection()
         if not ok:
             return False, msg
 
         body = (
             "Hello!\n\n"
-            "This is a test message from OCAP to verify your SMTP settings.\n"
-            "If you received this, your email configuration is working correctly.\n\n"
+            "This is a test message from OCAP to verify your email settings.\n"
+            "If you received this, your configuration is working correctly.\n\n"
+            f"Provider: {provider_label}\n"
             "— OCAP System"
         )
         result = await gateway.send_single(
             recipient=recipient,
             message=body,
-            context={"subject": "OCAP — SMTP Connection Test"},
+            context={"subject": f"OCAP — {provider_label} Connection Test"},
         )
         if result["success"]:
-            return True, "Test email sent successfully!"
-        return False, result.get("error", "Unknown SMTP error.")
+            return True, f"Test email sent successfully via {provider_label}!"
+        return False, result.get("error", f"Unknown {provider_label} error.")
 
     @staticmethod
     async def test_sms(db: AsyncSession, project_id: int, recipient: str):
