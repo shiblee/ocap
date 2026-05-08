@@ -19,3 +19,4 @@ aiosmtplib
 bcrypt==4.0.1
 boto3
 google-generativeai
+httpx
