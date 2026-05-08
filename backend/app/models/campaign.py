@@ -11,6 +11,7 @@ class CampaignChannel(str, enum.Enum):
     IOS_PUSH = "ios_push"
     ANDROID_PUSH = "android_push"
     WHATSAPP = "whatsapp"
+    SOCIAL_POST = "social_post"
 
 class CampaignStatus(str, enum.Enum):
     DRAFT = "draft"
@@ -29,8 +30,8 @@ class Campaign(Base):
     subject = Column(String, nullable=True) # Used for Email
     content = Column(String, nullable=False) # Body content
     
-    channel = Column(SQLEnum(CampaignChannel), default=CampaignChannel.EMAIL)
-    status = Column(SQLEnum(CampaignStatus), default=CampaignStatus.DRAFT)
+    channel = Column(SQLEnum(CampaignChannel, values_callable=lambda obj: [e.value for e in obj]), default=CampaignChannel.EMAIL)
+    status = Column(SQLEnum(CampaignStatus, values_callable=lambda obj: [e.value for e in obj]), default=CampaignStatus.DRAFT)
     
     # Progress tracking
     total_contacts = Column(Integer, default=0)
@@ -39,6 +40,9 @@ class Campaign(Base):
     
     # Meta
     scheduled_at = Column(DateTime, nullable=True)
+    is_recurring = Column(Integer, default=0) # 0 = No, 1 = Yes
+    recurrence_interval = Column(String, nullable=True) # daily, weekly, monthly
+    social_platforms = Column(JSON, default=[]) # e.g. ['facebook', 'twitter']
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -57,7 +61,7 @@ class CampaignLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
-    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False)
+    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="CASCADE"), nullable=True)
     
     status = Column(String, nullable=False) # "success" or "failed"
     error_message = Column(String, nullable=True)

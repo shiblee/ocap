@@ -16,6 +16,10 @@ class Project(Base):
     whatsapp_config = Column(JSON, default={})
     push_config = Column(JSON, default={})
     
+    # AI & Social Media Configuration
+    ai_config = Column(JSON, default={}) # Gemini API key, etc.
+    social_config = Column(JSON, default={}) # Facebook, Twitter, etc. credentials
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

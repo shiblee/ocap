@@ -79,15 +79,17 @@ const Campaigns = () => {
   const [viewLogsCampaignId, setViewLogsCampaignId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const { activeProject } = useProject();
+  const { activeProject, loading: projectLoading } = useProject();
   const limit = 10;
 
   useEffect(() => {
-    fetchCampaigns();
+    if (!projectLoading) {
+      fetchCampaigns();
+    }
     // Poll for updates every 3 seconds if there are sending campaigns
     const interval = setInterval(fetchCampaigns, 3000);
     return () => clearInterval(interval);
-  }, [page, searchTerm]);
+  }, [page, searchTerm, activeProject, projectLoading]);
 
   const fetchCampaigns = async () => {
     if (!activeProject) {
@@ -233,8 +235,9 @@ const Campaigns = () => {
           </thead>
           <tbody>
             {campaigns.map((camp) => {
-              const progress = camp.total_contacts > 0 
-                ? Math.round((camp.sent_count / camp.total_contacts) * 100) 
+              const total = camp.channel === 'social_post' ? Math.max(camp.total_contacts, 1) : camp.total_contacts;
+              const progress = total > 0 
+                ? Math.round((camp.sent_count / total) * 100) 
                 : 0;
                 
               return (
@@ -255,7 +258,7 @@ const Campaigns = () => {
                   <td style={{ padding: '24px' }}>
                     <div style={{ width: '140px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-                        <span>{camp.sent_count} / {camp.total_contacts}</span>
+                        <span>{camp.sent_count} / {total}</span>
                         <span>{progress}%</span>
                       </div>
                       <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>

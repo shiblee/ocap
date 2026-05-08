@@ -30,7 +30,13 @@ const Settings = () => {
     email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
     whatsapp_config: { phone_id: '', token: '', provider: 'meta' },
-    push_config: { server_key: '', vapid_public: '', vapid_private: '' }
+    push_config: { server_key: '', vapid_public: '', vapid_private: '' },
+    ai_config: { gemini_api_key: '' },
+    social_config: { 
+      facebook: { page_id: '', token: '' }, 
+      instagram: { account_id: '', token: '' },
+      twitter: { api_key: '', api_secret: '', access_token: '', access_token_secret: '' } 
+    }
   });
 
   useEffect(() => {
@@ -61,7 +67,13 @@ const Settings = () => {
         },
         sms_config: projectData.sms_config || { provider: 'twilio', sid: '', token: '', from: '' },
         whatsapp_config: projectData.whatsapp_config || { phone_id: '', token: '', provider: 'meta' },
-        push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' }
+        push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' },
+        ai_config: projectData.ai_config || { gemini_api_key: '' },
+        social_config: projectData.social_config || { 
+          facebook: { page_id: '', token: '' }, 
+          instagram: { account_id: '', token: '' },
+          twitter: { api_key: '', api_secret: '', access_token: '', access_token_secret: '' } 
+        }
       });
     } catch (err) {
       console.error("Failed to fetch settings", err);
@@ -85,7 +97,9 @@ const Settings = () => {
           email_config: formData.email_config,
           sms_config: formData.sms_config,
           whatsapp_config: formData.whatsapp_config,
-          push_config: formData.push_config
+          push_config: formData.push_config,
+          ai_config: formData.ai_config,
+          social_config: formData.social_config
         });
       }
 
@@ -188,6 +202,7 @@ const Settings = () => {
           <TabButton id="sms" label="SMS Gateway" icon={MessageSquare} />
           <TabButton id="whatsapp" label="WhatsApp API" icon={Globe} />
           <TabButton id="push" label="Push Notifications" icon={Bell} />
+          <TabButton id="ai_social" label="AI & Social Media" icon={Globe} />
         </div>
 
         {/* Content Area */}
@@ -398,6 +413,77 @@ const Settings = () => {
                     <div>
                       <label style={labelStyle}>FCM Server Key (Legacy)</label>
                       <input type="password" style={inputStyle} value={formData.push_config.server_key} onChange={e => setFormData({...formData, push_config: {...formData.push_config, server_key: e.target.value}})} />
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {activeTab === 'ai_social' && (
+                <section>
+                  <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '24px', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Globe size={20} color="#6366f1" /> AI & Social Media Configuration
+                  </h3>
+                  
+                  {/* Gemini API Key */}
+                  <div style={{ marginBottom: '32px', padding: '20px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '16px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                    <h4 style={{ color: '#a5b4fc', fontSize: '14px', fontWeight: '700', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      ✨ Gemini AI Settings
+                    </h4>
+                    <div>
+                      <label style={labelStyle}>Gemini API Key</label>
+                      <input 
+                        type="password" 
+                        style={inputStyle} 
+                        value={formData.ai_config.gemini_api_key} 
+                        onChange={e => setFormData({...formData, ai_config: {...formData.ai_config, gemini_api_key: e.target.value}})} 
+                        placeholder="Enter your Google AI API Key"
+                      />
+                      <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>Used for automatic post generation and content improvement.</p>
+                    </div>
+                  </div>
+
+                  {/* Facebook Settings */}
+                  <div style={{ marginBottom: '32px', padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <h4 style={{ color: '#fff', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>📘 Facebook / Meta Settings</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      <div>
+                        <label style={labelStyle}>Page ID</label>
+                        <input style={inputStyle} value={formData.social_config.facebook.page_id} onChange={e => setFormData({...formData, social_config: {...formData.social_config, facebook: {...formData.social_config.facebook, page_id: e.target.value}}})} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Page Access Token</label>
+                        <input type="password" style={inputStyle} value={formData.social_config.facebook.token} onChange={e => setFormData({...formData, social_config: {...formData.social_config, facebook: {...formData.social_config.facebook, token: e.target.value}}})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Instagram Settings */}
+                  <div style={{ marginBottom: '32px', padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <h4 style={{ color: '#fff', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>📸 Instagram Settings</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      <div>
+                        <label style={labelStyle}>Instagram Account ID</label>
+                        <input style={inputStyle} value={formData.social_config.instagram.account_id} onChange={e => setFormData({...formData, social_config: {...formData.social_config, instagram: {...formData.social_config.instagram, account_id: e.target.value}}})} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Access Token</label>
+                        <input type="password" style={inputStyle} value={formData.social_config.instagram.token} onChange={e => setFormData({...formData, social_config: {...formData.social_config, instagram: {...formData.social_config.instagram, token: e.target.value}}})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Twitter Settings */}
+                  <div style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <h4 style={{ color: '#fff', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>🐦 Twitter / X Settings</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      <div>
+                        <label style={labelStyle}>API Key</label>
+                        <input style={inputStyle} value={formData.social_config.twitter.api_key} onChange={e => setFormData({...formData, social_config: {...formData.social_config, twitter: {...formData.social_config.twitter, api_key: e.target.value}}})} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>API Secret</label>
+                        <input type="password" style={inputStyle} value={formData.social_config.twitter.api_secret} onChange={e => setFormData({...formData, social_config: {...formData.social_config, twitter: {...formData.social_config.twitter, api_secret: e.target.value}}})} />
+                      </div>
                     </div>
                   </div>
                 </section>

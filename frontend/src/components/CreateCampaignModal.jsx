@@ -58,7 +58,10 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
     channel: 'email',
     subject: '',
     content: '',
-    scheduled_at: ''
+    scheduled_at: '',
+    social_platforms: [],
+    is_recurring: false,
+    recurrence_interval: 'daily'
   });
   const [launchMode, setLaunchMode] = useState('draft'); // 'draft', 'now', 'schedule'
   const [showPreview, setShowPreview] = useState(false);
@@ -72,7 +75,10 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         channel: campaign.channel || 'email',
         subject: campaign.subject || '',
         content: campaign.content || '',
-        scheduled_at: campaign.scheduled_at ? new Date(campaign.scheduled_at).toISOString().slice(0, 16) : ''
+        scheduled_at: campaign.scheduled_at ? new Date(campaign.scheduled_at).toISOString().slice(0, 16) : '',
+        social_platforms: campaign.social_platforms || [],
+        is_recurring: campaign.is_recurring === 1,
+        recurrence_interval: campaign.recurrence_interval || 'daily'
       });
       if (campaign.status === 'scheduled') {
         setLaunchMode('schedule');
@@ -80,7 +86,16 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         setLaunchMode('draft');
       }
     } else {
-      setFormData({ name: '', channel: 'email', subject: '', content: '', scheduled_at: '' });
+      setFormData({ 
+        name: '', 
+        channel: 'email', 
+        subject: '', 
+        content: '', 
+        scheduled_at: '',
+        social_platforms: [],
+        is_recurring: false,
+        recurrence_interval: 'daily'
+      });
       setLaunchMode('draft');
     }
   }, [campaign, isOpen]);
@@ -91,7 +106,8 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
     { id: 'email', label: 'Email', icon: <Mail size={20} />, color: '#6366f1', desc: 'Send rich emails to your audience' },
     { id: 'sms', label: 'SMS', icon: <MessageSquare size={20} />, color: '#10b981', desc: 'Direct text messages' },
     { id: 'whatsapp', label: 'WhatsApp', icon: <Smartphone size={20} />, color: '#25d366', desc: 'Official WhatsApp Business API' },
-    { id: 'web_push', label: 'Web Push', icon: <Globe size={20} />, color: '#f59e0b', desc: 'Browser notifications' }
+    { id: 'web_push', label: 'Web Push', icon: <Globe size={20} />, color: '#f59e0b', desc: 'Browser notifications' },
+    { id: 'social_post', label: 'Social Media Post', icon: <Globe size={20} />, color: '#f472b6', desc: 'Auto-generate and post to Facebook, Twitter, etc.' }
   ];
 
   const handleSubmit = async (e) => {
@@ -110,7 +126,10 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         channel: formData.channel, 
         subject: formData.subject, 
         content: formData.content, 
-        project_id: activeProject.id 
+        project_id: activeProject.id,
+        social_platforms: formData.social_platforms,
+        is_recurring: formData.is_recurring ? 1 : 0,
+        recurrence_interval: formData.recurrence_interval
       };
       
       let savedCampaignId;
@@ -238,6 +257,30 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                   ))}
                 </div>
               </div>
+              
+              {formData.channel === 'social_post' && (
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500', display: 'block', marginBottom: '12px' }}>Select Platforms</label>
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    {['facebook', 'instagram', 'twitter', 'linkedin'].map(p => (
+                      <label key={p} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', fontSize: '14px', background: 'rgba(255,255,255,0.05)', padding: '8px 16px', borderRadius: '12px', border: '1px solid', borderColor: formData.social_platforms.includes(p) ? '#f472b6' : 'transparent' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={formData.social_platforms.includes(p)}
+                          onChange={(e) => {
+                            const platforms = e.target.checked 
+                              ? [...formData.social_platforms, p] 
+                              : formData.social_platforms.filter(x => x !== p);
+                            setFormData({...formData, social_platforms: platforms});
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -276,9 +319,37 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                     required
                   />
                 )}
-                <p style={{ fontSize: '11px', color: '#475569', marginTop: '40px' }}>
-                  Tips: Use a clear call to action for better engagement.
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                   <p style={{ fontSize: '11px', color: '#475569' }}>
+                    Tips: Use a clear call to action for better engagement.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!activeProject) return;
+                      setLoading(true);
+                      try {
+                        const res = await api.post('/ai/generate-post', { 
+                          project_id: activeProject.id,
+                          platform: formData.channel === 'social_post' ? (formData.social_platforms[0] || 'social media') : 'email'
+                        });
+                        setFormData({...formData, content: res.data.content});
+                      } catch (err) {
+                        alert(err.response?.data?.detail || "AI Generation failed. Check Gemini API key in Settings.");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    style={{ 
+                      padding: '8px 16px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', 
+                      border: '1px solid rgba(99, 102, 241, 0.3)', color: '#a5b4fc', 
+                      fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '6px'
+                    }}
+                  >
+                    ✨ Generate with Gemini
+                  </button>
+                </div>
                 
                 {formData.channel === 'email' && (
                   <div style={{ marginTop: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -332,6 +403,34 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                     {mode === 'draft' ? 'Save as Draft' : mode === 'now' ? 'Launch Immediately' : 'Schedule for Later'}
                   </label>
                 ))}
+              </div>
+
+              {/* Recurring Settings */}
+              <div style={{ marginTop: '8px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '10px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: '#fff', fontWeight: '600', fontSize: '13px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={formData.is_recurring}
+                    onChange={(e) => setFormData({...formData, is_recurring: e.target.checked})}
+                    style={{ width: '16px', height: '16px', accentColor: '#6366f1' }}
+                  />
+                  🔁 Recurring Campaign
+                </label>
+                
+                {formData.is_recurring && (
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>Repeat:</span>
+                    <select 
+                      style={{ ...inputStyle, width: 'max-content', padding: '4px 8px', fontSize: '12px' }}
+                      value={formData.recurrence_interval}
+                      onChange={(e) => setFormData({...formData, recurrence_interval: e.target.value})}
+                    >
+                      <option value="daily" style={{ background: '#1e293b' }}>Every Day</option>
+                      <option value="weekly" style={{ background: '#1e293b' }}>Every Week</option>
+                      <option value="monthly" style={{ background: '#1e293b' }}>Every Month</option>
+                    </select>
+                  </div>
+                )}
               </div>
               
               {launchMode === 'schedule' && (
