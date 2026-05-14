@@ -122,8 +122,11 @@ class CampaignService:
         Background task to execute or RESUME the campaign.
         """
         campaign = await cls.get_campaign_by_id(db, campaign_id)
-        if not campaign or campaign.status in [CampaignStatus.COMPLETED, CampaignStatus.SENDING]:
+        if not campaign or campaign.status == CampaignStatus.SENDING:
             return
+        # Reset counters so it can be re-run
+        campaign.sent_count = 0
+        campaign.failed_count = 0
             
         # Fetch project for configuration
         proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
@@ -152,7 +155,13 @@ class CampaignService:
             except Exception as e:
                 logger.error(f"Error running social campaign: {e}")
                 campaign.status = CampaignStatus.FAILED
-            
+                db.add(CampaignLog(
+                    campaign_id=campaign.id,
+                    contact_id=None,
+                    status="failed",
+                    error_message=str(e)
+                ))
+
             await db.commit()
         else:
             # Existing contact-based logic
@@ -270,11 +279,14 @@ class CampaignService:
             
             gateway = SocialGateway(project.social_config or {})
             results = []
+            all_success = True
             for platform in platforms:
                 success, msg = await gateway.post_to_platform(platform, content)
                 results.append(f"{platform}: {msg}")
-            
-            return True, " | ".join(results)
+                if not success:
+                    all_success = False
+
+            return all_success, " | ".join(results)
 
         # SMS / Push / WhatsApp — placeholders until those gateways are built
         logger.info(
@@ -305,23 +317,17 @@ class CampaignService:
 
     @staticmethod
     async def get_campaign_logs(db: AsyncSession, campaign_id: int, skip: int = 0, limit: int = 50):
-        try:
-            query = select(CampaignLog, Contact).outerjoin(Contact, CampaignLog.contact_id == Contact.id).where(CampaignLog.campaign_id == campaign_id).order_by(CampaignLog.sent_at.desc()).offset(skip).limit(limit)
-            result = await db.execute(query)
-            logs = []
-            for row in result.all():
-                log = row[0]
-                contact = row[1]
-                logs.append({
-                    "id": log.id,
-                    "status": log.status,
-                    "error_message": log.error_message,
-                    "sent_at": log.sent_at.isoformat() if log.sent_at else None,
-                    "contact_email": getattr(contact, 'email', "System/Social") if contact else "System/Social",
-                    "contact_phone": getattr(contact, 'phone', "N/A") if contact else "N/A",
-                    "contact_name": getattr(contact, 'user_name', "Campaign Action") if contact else "Campaign Action"
-                })
-            return logs
-        except Exception as e:
-            logger.error(f"Error fetching campaign logs: {e}")
-            return []
+        query = select(CampaignLog, Contact).outerjoin(Contact, CampaignLog.contact_id == Contact.id).where(CampaignLog.campaign_id == campaign_id).order_by(CampaignLog.sent_at.desc()).offset(skip).limit(limit)
+        result = await db.execute(query)
+        logs = []
+        for log, contact in result.all():
+            logs.append({
+                "id": log.id,
+                "status": log.status,
+                "error_message": log.error_message,
+                "sent_at": log.sent_at,
+                "contact_email": contact.email if contact else "Project Broadcast",
+                "contact_phone": contact.phone if contact else "N/A",
+                "contact_name": contact.user_name if contact else "Social Media"
+            })
+        return logs

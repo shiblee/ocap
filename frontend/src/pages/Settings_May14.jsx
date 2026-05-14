@@ -27,7 +27,7 @@ const Settings = () => {
     app_name: 'OCAP',
     copyright_text: '© 2026 OCAP',
     primary_color: '#6366f1',
-    email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', encryption: 'tls', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
+    email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
     whatsapp_config: { phone_id: '', token: '', provider: 'meta' },
     push_config: { server_key: '', vapid_public: '', vapid_private: '' },
@@ -61,7 +61,7 @@ const Settings = () => {
         primary_color: globalRes.data?.primary_color || '#6366f1',
         email_config: {
           provider: 'smtp', host: '', port: 587, user: '', password: '',
-          sender: '', sender_name: '', encryption: 'tls', aws_region: 'ap-south-1',
+          sender: '', sender_name: '', aws_region: 'ap-south-1',
           aws_access_key_id: '', aws_secret_access_key: '',
           ...(projectData.email_config || {})
         },
@@ -308,17 +308,6 @@ const Settings = () => {
                         <button onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
                           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Security / Encryption</label>
-                        <select 
-                          style={{ ...inputStyle, cursor: 'pointer' }} 
-                          value={formData.email_config.encryption || 'tls'} 
-                          onChange={e => setFormData({...formData, email_config: {...formData.email_config, encryption: e.target.value}})}
-                        >
-                          <option value="tls" style={{ background: '#1e293b' }}>TLS (STARTTLS - Port 587)</option>
-                          <option value="ssl" style={{ background: '#1e293b' }}>SSL (Implicit TLS - Port 465)</option>
-                        </select>
                       </div>
                     </>)}
 

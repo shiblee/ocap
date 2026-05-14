@@ -27,7 +27,6 @@ class EmailGateway(BaseGateway):
         self.port = int(cfg.get("port") or settings.MAIL_PORT)
         self.username = cfg.get("user") or settings.MAIL_USERNAME
         self.password = cfg.get("password") or settings.MAIL_PASSWORD
-        self.encryption = cfg.get("encryption") or settings.MAIL_ENCRYPTION or "tls"
         self.from_address = cfg.get("sender") or settings.MAIL_FROM_ADDRESS
         self.from_name = cfg.get("sender_name") or settings.MAIL_FROM_NAME
         self.max_retries = settings.MAIL_MAX_RETRIES
@@ -54,17 +53,13 @@ class EmailGateway(BaseGateway):
 
     async def _smtp_send(self, msg: MIMEMultipart) -> None:
         """Open a fresh SMTP connection, send one message, close."""
-        use_tls = self.encryption.lower() == "ssl"
-        start_tls = self.encryption.lower() == "tls"
-        
         await aiosmtplib.send(
             msg,
             hostname=self.host,
             port=self.port,
             username=self.username,
             password=self.password,
-            use_tls=use_tls,
-            start_tls=start_tls,
+            start_tls=True,
             timeout=self.timeout,
         )
 
@@ -126,23 +121,15 @@ class EmailGateway(BaseGateway):
 
     async def verify_connection(self) -> tuple[bool, str]:
         """Return (ok, message). Connects and authenticates but sends nothing."""
-        use_tls = self.encryption.lower() == "ssl"
-        start_tls = self.encryption.lower() == "tls"
-        
         try:
             smtp = aiosmtplib.SMTP(
                 hostname=self.host,
                 port=self.port,
-                use_tls=use_tls,
                 timeout=self.timeout,
             )
             await smtp.connect()
-            if start_tls:
-                await smtp.starttls()
-            
-            if self.username and self.password:
-                await smtp.login(self.username, self.password)
-            
+            await smtp.starttls()
+            await smtp.login(self.username, self.password)
             await smtp.quit()
             return True, "SMTP connection successful."
         except Exception as exc:
