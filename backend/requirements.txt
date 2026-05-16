@@ -18,5 +18,5 @@ passlib[bcrypt]
 aiosmtplib
 bcrypt==4.0.1
 boto3
-google-genai
+google-generativeai
 httpx

@@ -45,6 +45,30 @@ async def create_contact(
     await db.refresh(contact)
     return jsonable_encoder(contact)
 
+@router.put("/{contact_id}")
+async def update_contact(
+    contact_id: int,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    from app.models.contact import Contact
+    from sqlalchemy import select
+
+    result = await db.execute(select(Contact).where(Contact.id == contact_id))
+    contact = result.scalar_one_or_none()
+
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    for key, value in data.items():
+        if hasattr(contact, key):
+            setattr(contact, key, value)
+
+    await db.commit()
+    await db.refresh(contact)
+    return jsonable_encoder(contact)
+
 @router.post("/upload")
 async def upload_contacts(
     file: UploadFile = File(...),

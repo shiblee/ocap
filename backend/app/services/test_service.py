@@ -3,6 +3,7 @@ from sqlalchemy import select
 from app.models.project import Project
 from app.gateways.email_gateway import EmailGateway
 from app.gateways.ses_gateway import SESGateway
+from app.gateways.wati_gateway import WatiGateway
 
 
 class TestService:
@@ -68,7 +69,6 @@ class TestService:
 
     @staticmethod
     async def test_whatsapp(db: AsyncSession, project_id: int, recipient: str):
-        # Placeholder for Meta API call
         result = await db.execute(select(Project).where(Project.id == project_id))
         project = result.scalar_one_or_none()
         
@@ -76,7 +76,18 @@ class TestService:
             return False, "WhatsApp configuration not found for this project."
             
         conf = project.whatsapp_config
-        if not conf.get("token"):
-            return False, "Missing Access Token."
+        if not conf.get("wati_token") or not conf.get("wati_endpoint"):
+            return False, "Incomplete WATI config — wati_token and wati_endpoint are required."
             
-        return True, f"Simulated WhatsApp message sent to {recipient}. API token validated."
+        gateway = WatiGateway(conf)
+        ok, msg = await gateway.verify_connection()
+        if not ok:
+            return False, msg
+            
+        # Send a real test message
+        test_message = "Hello from OCAP! This is a test message to verify your WATI WhatsApp settings."
+        res = await gateway.send_single(recipient=recipient, message=test_message)
+        
+        if res["success"]:
+            return True, f"WhatsApp test message sent successfully to {recipient}!"
+        return False, res.get("error", "Failed to send WhatsApp test message.")

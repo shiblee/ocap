@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.gateways.email_gateway import EmailGateway
 from app.gateways.ses_gateway import SESGateway
 from app.gateways.social_gateway import SocialGateway
+from app.gateways.wati_gateway import WatiGateway
 from app.services.ai_service import AIService
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class CampaignService:
     async def get_campaign_by_id(db: AsyncSession, campaign_id: int):
         result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
         return result.scalar_one_or_none()
+
     @staticmethod
     async def update_campaign(db: AsyncSession, campaign_id: int, data: dict):
         print(f"DEBUG: Updating campaign {campaign_id} with data: {data}")
@@ -125,17 +127,13 @@ class CampaignService:
         if not campaign or campaign.status in [CampaignStatus.COMPLETED, CampaignStatus.SENDING]:
             return
             
-        # Fetch project for configuration
         proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
         project = proj_res.scalar_one_or_none()
 
-        # 1. Update status to SENDING
         campaign.status = CampaignStatus.SENDING
         await db.commit()
 
-        # 2. Get target contacts based on channel (FILTERED BY PROJECT)
         if campaign.channel == CampaignChannel.SOCIAL_POST:
-            # Social posts are project-level, not contact-level
             try:
                 success, error_msg = await cls._dispatch_message(campaign, None, project)
                 campaign.total_contacts = 1
@@ -155,14 +153,14 @@ class CampaignService:
             
             await db.commit()
         else:
-            # Existing contact-based logic
-            base_query = select(Contact).where(Contact.project_id == campaign.project_id)
+            # ONLY target ACTIVE contacts
+            base_query = select(Contact).where(Contact.project_id == campaign.project_id, Contact.is_active == True)
             
             if campaign.channel == CampaignChannel.EMAIL:
                 query = base_query.where(Contact.email != None)
             elif campaign.channel == CampaignChannel.SMS:
                 query = base_query.where(Contact.phone != None)
-            else: # PUSH tokens
+            else: # PUSH / WhatsApp
                 token_field = {
                     CampaignChannel.WHATSAPP: Contact.phone,
                     CampaignChannel.WEB_PUSH: Contact.web_token,
@@ -175,12 +173,9 @@ class CampaignService:
             contacts = result.scalars().all()
             
             campaign.total_contacts = len(contacts)
-            
-            # 3. Handle RESUMPTION
             pending_contacts = contacts[campaign.sent_count:]
             await db.commit()
 
-            # 4. Dispatch messages
             for contact in pending_contacts:
                 await db.refresh(campaign)
                 if campaign.status == CampaignStatus.STOPPED:
@@ -203,22 +198,17 @@ class CampaignService:
                 
                 await db.commit()
 
-        # 5. Finalize
         if campaign.status != CampaignStatus.STOPPED:
             if campaign.is_recurring and campaign.scheduled_at:
-                # Calculate next run time
                 interval = campaign.recurrence_interval or "daily"
                 if interval == "daily":
                     campaign.scheduled_at += timedelta(days=1)
                 elif interval == "weekly":
                     campaign.scheduled_at += timedelta(weeks=1)
                 elif interval == "monthly":
-                    # Simple monthly approximation
                     campaign.scheduled_at += timedelta(days=30)
                 
                 campaign.status = CampaignStatus.SCHEDULED
-                # Reset counters for next run? 
-                # Usually we'd want to archive old logs, but for now we just reset
                 campaign.sent_count = 0
                 campaign.failed_count = 0
             else:
@@ -228,7 +218,6 @@ class CampaignService:
 
     @staticmethod
     async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None) -> tuple[bool, str]:
-        """Deliver one message via the appropriate channel gateway. Returns (success, error_message)."""
         if campaign.channel == CampaignChannel.EMAIL:
             if not contact.email:
                 return False, "No email address"
@@ -240,33 +229,20 @@ class CampaignService:
                 context={"subject": campaign.subject or campaign.name},
             )
             if not result["success"]:
-                logger.warning(
-                    "[Campaign %d] Email to %s failed: %s",
-                    campaign.id, contact.email, result.get("error"),
-                )
                 return False, result.get("error", "Unknown error")
             return True, None
 
         if campaign.channel == CampaignChannel.SOCIAL_POST:
-            # 1. Generate content if empty OR if it's a recurring AI campaign
             content = campaign.content
-            # If content is "AUTO_GENERATE" or empty, always generate fresh AI content
             if not content or content == "AUTO_GENERATE" or content.strip() == "":
                 ai_conf = project.ai_config or {}
-                # Add "Randomness" to prompt to ensure variety
                 content = await AIService.generate_social_post(
-                    f"{project.description or project.name} (Context: Random variation for recurring post)", 
+                    f"{project.description or project.name}", 
                     api_key=ai_conf.get("gemini_api_key")
                 )
-                # We don't necessarily want to overwrite the "AUTO_GENERATE" placeholder 
-                # in the database if we want it to stay dynamic.
-                # But _dispatch_message is called during execution.
-                # If we want the log to show what was sent, we return the content.
 
-            # 2. Post to selected platforms
             platforms = campaign.social_platforms or []
-            if not platforms:
-                return False, "No platforms selected for social post"
+            if not platforms: return False, "No platforms selected"
             
             gateway = SocialGateway(project.social_config or {})
             results = []
@@ -276,32 +252,16 @@ class CampaignService:
             
             return True, " | ".join(results)
 
-        # SMS / Push / WhatsApp — placeholders until those gateways are built
-        logger.info(
-            "[Campaign %d] Simulated %s send to contact %d",
-            campaign.id, campaign.channel, contact.id,
-        )
-        await asyncio.sleep(0.05)
-        return True, None
+        if campaign.channel == CampaignChannel.WHATSAPP:
+            if not contact.phone: return False, "No phone number"
+            conf = (project.whatsapp_config or {}) if project else {}
+            gateway = WatiGateway(conf)
+            result = await gateway.send_single(recipient=contact.phone, message=campaign.content)
+            if not result["success"]: return False, result.get("error", "Unknown WhatsApp error")
+            return True, None
 
-    @staticmethod
-    async def send_test_email(db: AsyncSession, campaign_id: int, email: str):
-        result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
-        campaign = result.scalar_one_or_none()
-        if not campaign:
-            return {"success": False, "error": "Campaign not found"}
-        
-        proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
-        project = proj_res.scalar_one_or_none()
-        
-        conf = (project.email_config or {}) if project else {}
-        gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
-        result = await gateway.send_single(
-            recipient=email,
-            message=campaign.content,
-            context={"subject": f"[TEST] {campaign.subject or campaign.name}"},
-        )
-        return result
+        await asyncio.sleep(0.01)
+        return True, None
 
     @staticmethod
     async def get_campaign_logs(db: AsyncSession, campaign_id: int, skip: int = 0, limit: int = 50):
@@ -317,11 +277,10 @@ class CampaignService:
                     "status": log.status,
                     "error_message": log.error_message,
                     "sent_at": log.sent_at.isoformat() if log.sent_at else None,
-                    "contact_email": getattr(contact, 'email', "System/Social") if contact else "System/Social",
+                    "contact_email": getattr(contact, 'email', "N/A") if contact else "N/A",
                     "contact_phone": getattr(contact, 'phone', "N/A") if contact else "N/A",
-                    "contact_name": getattr(contact, 'user_name', "Campaign Action") if contact else "Campaign Action"
+                    "contact_name": getattr(contact, 'user_name', "N/A") if contact else "N/A"
                 })
             return logs
         except Exception as e:
-            logger.error(f"Error fetching campaign logs: {e}")
             return []

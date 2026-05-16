@@ -29,7 +29,7 @@ const Settings = () => {
     primary_color: '#6366f1',
     email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', encryption: 'tls', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
-    whatsapp_config: { phone_id: '', token: '', provider: 'meta' },
+    whatsapp_config: { wati_endpoint: '', wati_token: '', provider: 'wati' },
     push_config: { server_key: '', vapid_public: '', vapid_private: '' },
     ai_config: { gemini_api_key: '' },
     social_config: { 
@@ -66,7 +66,7 @@ const Settings = () => {
           ...(projectData.email_config || {})
         },
         sms_config: projectData.sms_config || { provider: 'twilio', sid: '', token: '', from: '' },
-        whatsapp_config: projectData.whatsapp_config || { phone_id: '', token: '', provider: 'meta' },
+        whatsapp_config: projectData.whatsapp_config || { wati_endpoint: '', wati_token: '', provider: 'wati' },
         push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' },
         ai_config: projectData.ai_config || { gemini_api_key: '' },
         social_config: projectData.social_config || { 
@@ -394,18 +394,28 @@ const Settings = () => {
                 <section>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                     <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Globe size={20} color="#6366f1" /> WhatsApp Cloud API
+                      <Globe size={20} color="#6366f1" /> WATI WhatsApp API
                     </h3>
                     <TestButton channel="whatsapp" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div>
-                      <label style={labelStyle}>Phone Number ID</label>
-                      <input style={inputStyle} value={formData.whatsapp_config.phone_id} onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, phone_id: e.target.value}})} />
+                      <label style={labelStyle}>WATI API Endpoint</label>
+                      <input 
+                        style={inputStyle} 
+                        placeholder="https://live-server-123.wati.io"
+                        value={formData.whatsapp_config.wati_endpoint || ''} 
+                        onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, wati_endpoint: e.target.value}})} 
+                      />
                     </div>
                     <div style={{ position: 'relative' }}>
-                      <label style={labelStyle}>Permanent Access Token</label>
-                      <textarea style={{...inputStyle, height: '80px'}} value={formData.whatsapp_config.token} onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, token: e.target.value}})} />
+                      <label style={labelStyle}>WATI Access Token</label>
+                      <textarea 
+                        style={{...inputStyle, height: '80px'}} 
+                        placeholder="Enter your WATI Bearer Token"
+                        value={formData.whatsapp_config.wati_token || ''} 
+                        onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, wati_token: e.target.value}})} 
+                      />
                     </div>
                   </div>
                 </section>

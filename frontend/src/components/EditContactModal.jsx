@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { X, UserPlus, Save, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Save, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
-import { useProject } from '../context/ProjectContext';
 
-const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
+const EditContactModal = ({ isOpen, onClose, onSuccess, contact }) => {
   const [formData, setFormData] = useState({
     user_name: '',
     email: '',
@@ -15,7 +14,20 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { activeProject } = useProject();
+
+  useEffect(() => {
+    if (contact) {
+      setFormData({
+        user_name: contact.user_name || '',
+        email: contact.email || '',
+        phone: contact.phone || '',
+        web_token: contact.web_token || '',
+        ios_token: contact.ios_token || '',
+        android_token: contact.android_token || '',
+        is_active: contact.is_active !== undefined ? contact.is_active : true
+      });
+    }
+  }, [contact]);
 
   if (!isOpen) return null;
 
@@ -30,19 +42,10 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
     setError('');
 
     try {
-      await api.post('/contacts/', { ...formData, project_id: activeProject.id });
+      await api.put(`/contacts/${contact.id}`, formData);
       onSuccess();
-      setFormData({
-        user_name: '',
-        email: '',
-        phone: '',
-        web_token: '',
-        ios_token: '',
-        android_token: '',
-        is_active: true
-      });
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to create contact.");
+      setError(err.response?.data?.detail || "Failed to update contact.");
     } finally {
       setLoading(false);
     }
@@ -86,9 +89,9 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
         <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: '22px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', color: '#fff' }}>
             <div style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '8px', borderRadius: '10px' }}>
-              <UserPlus size={22} color="#6366f1" />
+              <User size={22} color="#6366f1" />
             </div>
-            Add New Contact
+            Edit Contact
           </h2>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '8px', borderRadius: '50%', display: 'flex' }}>
             <X size={20} />
@@ -180,12 +183,12 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 4px' }}>
               <input 
                 type="checkbox" 
-                id="is_active"
+                id="is_active_edit"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
                 style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#22c55e' }}
               />
-              <label htmlFor="is_active" style={{ fontSize: '14px', color: '#fff', cursor: 'pointer', fontWeight: '600' }}>
+              <label htmlFor="is_active_edit" style={{ fontSize: '14px', color: '#fff', cursor: 'pointer', fontWeight: '600' }}>
                 Contact is Active (Can receive messages)
               </label>
             </div>
@@ -224,7 +227,7 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
               }}
             >
               <Save size={18} />
-              {loading ? 'Saving...' : 'Save Contact'}
+              {loading ? 'Saving...' : 'Update Contact'}
             </button>
           </div>
         </form>
@@ -233,4 +236,4 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
   );
 };
 
-export default AddContactModal;
+export default EditContactModal;
