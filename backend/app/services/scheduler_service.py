@@ -21,7 +21,7 @@ async def run_scheduler():
                 
                 # Query scheduled campaigns that are due
                 query = select(Campaign).where(
-                    Campaign.status == CampaignStatus.SCHEDULED,
+                    Campaign.status == CampaignStatus.scheduled,
                     Campaign.scheduled_at <= now
                 )
                 
@@ -30,9 +30,8 @@ async def run_scheduler():
                 
                 for campaign in due_campaigns:
                     logger.info(f"Triggering scheduled campaign {campaign.id} ({campaign.name})")
-                    # We can directly run the campaign. run_campaign will handle changing status to SENDING
-                    # We shouldn't await this directly if it takes a long time, so we create a background task for it
-                    asyncio.create_task(CampaignService.run_campaign(db, campaign.id))
+                    # run_campaign handles its own session now
+                    asyncio.create_task(CampaignService.run_campaign(campaign.id))
                     
         except Exception as e:
             logger.error(f"Error in scheduler loop: {e}")

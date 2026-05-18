@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Clock, Search } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Clock, Search, User, Phone, Mail } from 'lucide-react';
 import api from '../utils/api';
 
 const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
@@ -36,7 +36,7 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
       padding: '20px', backdropFilter: 'blur(10px)'
     }}>
       <div className="glass-effect" style={{
-        width: '100%', maxWidth: '800px', borderRadius: '28px',
+        width: '100%', maxWidth: '950px', borderRadius: '28px',
         background: 'rgba(30, 41, 59, 0.95)', overflow: 'hidden',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         display: 'flex', flexDirection: 'column', maxHeight: '85vh'
@@ -64,7 +64,7 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>RECIPIENT</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>RECIPIENT INFO</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>STATUS</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>ERROR MESSAGE</th>
                   <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>TIME</th>
@@ -73,8 +73,18 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
               <tbody>
                 {logs.map((log) => (
                   <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '16px', color: '#e2e8f0', fontSize: '14px' }}>
-                      {log.contact_email || log.contact_phone}
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ color: '#fff', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <User size={14} color="#94a3b8" /> {log.contact_name || 'Unknown'}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Mail size={12} /> {log.contact_email || '-'}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Phone size={12} /> {log.contact_phone || '-'}
+                        </div>
+                      </div>
                     </td>
                     <td style={{ padding: '16px' }}>
                       {log.status === 'success' ? (

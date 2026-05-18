@@ -6,6 +6,9 @@ from app.services.campaign_service import CampaignService
 from app.api.auth import get_current_user
 from typing import List, Optional
 from pydantic import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TestEmailRequest(BaseModel):
     email: str
@@ -21,9 +24,6 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Create a new campaign as DRAFT.
-    """
     campaign = await CampaignService.create_campaign(db, data)
     return jsonable_encoder(campaign)
 
@@ -34,16 +34,11 @@ async def start_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Manually start or resume a campaign.
-    """
     campaign = await CampaignService.get_campaign_by_id(db, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
         
-    # Trigger execution in background
-    background_tasks.add_task(CampaignService.run_campaign, db, campaign.id)
-    
+    background_tasks.add_task(CampaignService.run_campaign, campaign.id)
     return {"message": "Campaign started successfully"}
 
 @router.post("/{campaign_id}/schedule")
@@ -53,9 +48,6 @@ async def schedule_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Schedule a campaign to run at a specific time.
-    """
     from datetime import datetime
     try:
         dt = datetime.fromisoformat(payload.scheduled_at.replace("Z", "+00:00"))
@@ -74,9 +66,6 @@ async def delete_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Permanently delete a campaign.
-    """
     success = await CampaignService.delete_campaign(db, campaign_id)
     if not success:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -91,9 +80,6 @@ async def list_campaigns(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    List all campaigns with search, pagination, and project filter.
-    """
     campaigns = await CampaignService.get_campaigns(db, project_id, skip, limit, search)
     return jsonable_encoder(campaigns)
 
@@ -103,9 +89,6 @@ async def get_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Get campaign details by ID.
-    """
     campaign = await CampaignService.get_campaign_by_id(db, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -118,27 +101,28 @@ async def update_campaign(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Update campaign details.
-    """
     campaign = await CampaignService.update_campaign(db, campaign_id, data)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return jsonable_encoder(campaign)
 
-@router.patch("/{campaign_id}/stop")
+@router.post("/{campaign_id}/stop")
 async def stop_campaign(
     campaign_id: int,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """
-    Stop an active campaign.
+    Stop an active campaign. Using POST to avoid potential PATCH issues.
     """
-    success = await CampaignService.stop_campaign(db, campaign_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    return {"message": "Campaign stopped successfully"}
+    try:
+        success = await CampaignService.stop_campaign(db, campaign_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        return {"message": "Campaign stopped successfully"}
+    except Exception as e:
+        logger.error(f"CRITICAL ERROR in stop_campaign API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.post("/{campaign_id}/test")
 async def send_test_campaign_email(
@@ -147,9 +131,6 @@ async def send_test_campaign_email(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Send a test email for a campaign without logging it to campaign_logs.
-    """
     result = await CampaignService.send_test_email(db, campaign_id, payload.email)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to send test email"))
@@ -163,8 +144,5 @@ async def get_campaign_logs(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Get campaign delivery logs.
-    """
     logs = await CampaignService.get_campaign_logs(db, campaign_id, skip, limit)
     return logs

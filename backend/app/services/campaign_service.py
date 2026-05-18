@@ -12,13 +12,13 @@ from app.gateways.ses_gateway import SESGateway
 from app.gateways.social_gateway import SocialGateway
 from app.gateways.wati_gateway import WatiGateway
 from app.services.ai_service import AIService
+from app.db.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 class CampaignService:
     @staticmethod
     async def create_campaign(db: AsyncSession, data: dict):
-        print(f"DEBUG: Creating campaign with data: {data}")
         if "scheduled_at" in data and isinstance(data["scheduled_at"], str) and data["scheduled_at"]:
             try:
                 data["scheduled_at"] = datetime.fromisoformat(data["scheduled_at"].replace("Z", "+00:00"))
@@ -32,7 +32,6 @@ class CampaignService:
             await db.refresh(campaign)
             return campaign
         except Exception as e:
-            print(f"DEBUG ERROR in create_campaign: {e}")
             await db.rollback()
             raise e
 
@@ -59,7 +58,6 @@ class CampaignService:
 
     @staticmethod
     async def update_campaign(db: AsyncSession, campaign_id: int, data: dict):
-        print(f"DEBUG: Updating campaign {campaign_id} with data: {data}")
         result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
         campaign = result.scalar_one_or_none()
         if not campaign:
@@ -80,7 +78,6 @@ class CampaignService:
             await db.refresh(campaign)
             return campaign
         except Exception as e:
-            print(f"DEBUG ERROR in update_campaign: {e}")
             await db.rollback()
             raise e
 
@@ -91,21 +88,26 @@ class CampaignService:
         if not campaign:
             return False
             
-        campaign.status = CampaignStatus.SCHEDULED
-        campaign.scheduled_at = scheduled_at.replace(tzinfo=None) # Store as naive UTC
+        campaign.status = CampaignStatus.scheduled # lowercase member name
+        campaign.scheduled_at = scheduled_at.replace(tzinfo=None)
         await db.commit()
         return True
 
     @staticmethod
     async def stop_campaign(db: AsyncSession, campaign_id: int):
-        result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
-        campaign = result.scalar_one_or_none()
-        if not campaign:
-            return False
-            
-        campaign.status = CampaignStatus.STOPPED
-        await db.commit()
-        return True
+        try:
+            result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+            campaign = result.scalar_one_or_none()
+            if not campaign:
+                return False
+                
+            campaign.status = CampaignStatus.stopped # lowercase member name
+            await db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error stopping campaign {campaign_id}: {e}")
+            await db.rollback()
+            raise e
 
     @staticmethod
     async def delete_campaign(db: AsyncSession, campaign_id: int):
@@ -119,108 +121,104 @@ class CampaignService:
         return True
 
     @classmethod
-    async def run_campaign(cls, db: AsyncSession, campaign_id: int):
-        """
-        Background task to execute or RESUME the campaign.
-        """
-        campaign = await cls.get_campaign_by_id(db, campaign_id)
-        if not campaign or campaign.status in [CampaignStatus.COMPLETED, CampaignStatus.SENDING]:
-            return
-            
-        proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
-        project = proj_res.scalar_one_or_none()
-
-        campaign.status = CampaignStatus.SENDING
-        await db.commit()
-
-        if campaign.channel == CampaignChannel.SOCIAL_POST:
-            try:
-                success, error_msg = await cls._dispatch_message(campaign, None, project)
-                campaign.total_contacts = 1
-                campaign.sent_count = 1 if success else 0
-                campaign.failed_count = 0 if success else 1
+    async def run_campaign(cls, campaign_id: int):
+        async with AsyncSessionLocal() as db:
+            campaign = await cls.get_campaign_by_id(db, campaign_id)
+            if not campaign or campaign.status in [CampaignStatus.completed, CampaignStatus.sending]:
+                return
                 
-                log_entry = CampaignLog(
-                    campaign_id=campaign.id,
-                    contact_id=None,
-                    status="success" if success else "failed",
-                    error_message=error_msg
-                )
-                db.add(log_entry)
-            except Exception as e:
-                logger.error(f"Error running social campaign: {e}")
-                campaign.status = CampaignStatus.FAILED
-            
-            await db.commit()
-        else:
-            # ONLY target ACTIVE contacts
-            base_query = select(Contact).where(Contact.project_id == campaign.project_id, Contact.is_active == True)
-            
-            if campaign.channel == CampaignChannel.EMAIL:
-                query = base_query.where(Contact.email != None)
-            elif campaign.channel == CampaignChannel.SMS:
-                query = base_query.where(Contact.phone != None)
-            else: # PUSH / WhatsApp
-                token_field = {
-                    CampaignChannel.WHATSAPP: Contact.phone,
-                    CampaignChannel.WEB_PUSH: Contact.web_token,
-                    CampaignChannel.IOS_PUSH: Contact.ios_token,
-                    CampaignChannel.ANDROID_PUSH: Contact.android_token
-                }.get(campaign.channel)
-                query = base_query.where(token_field != None)
+            proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
+            project = proj_res.scalar_one_or_none()
 
-            result = await db.execute(query)
-            contacts = result.scalars().all()
-            
-            campaign.total_contacts = len(contacts)
-            pending_contacts = contacts[campaign.sent_count:]
+            campaign.status = CampaignStatus.sending
             await db.commit()
 
-            for contact in pending_contacts:
-                await db.refresh(campaign)
-                if campaign.status == CampaignStatus.STOPPED:
-                    break
-
+            if campaign.channel == CampaignChannel.social_post:
                 try:
-                    success, error_msg = await cls._dispatch_message(campaign, contact, project)
+                    success, error_msg = await cls._dispatch_message(campaign, None, project)
+                    campaign.total_contacts = 1
+                    campaign.sent_count = 1 if success else 0
+                    campaign.failed_count = 0 if success else 1
+                    
                     log_entry = CampaignLog(
                         campaign_id=campaign.id,
-                        contact_id=contact.id,
+                        contact_id=None,
                         status="success" if success else "failed",
                         error_message=error_msg
                     )
                     db.add(log_entry)
-                    if success: campaign.sent_count += 1
-                    else: campaign.failed_count += 1
                 except Exception as e:
-                    campaign.failed_count += 1
-                    db.add(CampaignLog(campaign_id=campaign.id, contact_id=contact.id, status="failed", error_message=str(e)))
+                    logger.error(f"Error running social campaign: {e}")
+                    campaign.status = CampaignStatus.failed
+                
+                await db.commit()
+            else:
+                base_query = select(Contact).where(Contact.project_id == campaign.project_id, Contact.is_active == True)
+                
+                if campaign.channel == CampaignChannel.email:
+                    query = base_query.where(Contact.email != None)
+                elif campaign.channel == CampaignChannel.sms:
+                    query = base_query.where(Contact.phone != None)
+                else:
+                    token_field = {
+                        CampaignChannel.whatsapp: Contact.phone,
+                        CampaignChannel.web_push: Contact.web_token,
+                        CampaignChannel.ios_push: Contact.ios_token,
+                        CampaignChannel.android_push: Contact.android_token
+                    }.get(campaign.channel)
+                    query = base_query.where(token_field != None)
+
+                result = await db.execute(query)
+                contacts = result.scalars().all()
+                
+                campaign.total_contacts = len(contacts)
+                pending_contacts = contacts[campaign.sent_count:]
+                await db.commit()
+
+                for contact in pending_contacts:
+                    await db.refresh(campaign)
+                    if campaign.status == CampaignStatus.stopped:
+                        break
+
+                    try:
+                        success, error_msg = await cls._dispatch_message(campaign, contact, project)
+                        log_entry = CampaignLog(
+                            campaign_id=campaign.id,
+                            contact_id=contact.id,
+                            status="success" if success else "failed",
+                            error_message=error_msg
+                        )
+                        db.add(log_entry)
+                        if success: campaign.sent_count += 1
+                        else: campaign.failed_count += 1
+                    except Exception as e:
+                        campaign.failed_count += 1
+                        db.add(CampaignLog(campaign_id=campaign.id, contact_id=contact.id, status="failed", error_message=str(e)))
+                    
+                    await db.commit()
+
+            if campaign.status != CampaignStatus.stopped:
+                if campaign.is_recurring and campaign.scheduled_at:
+                    interval = campaign.recurrence_interval or "daily"
+                    if interval == "daily":
+                        campaign.scheduled_at += timedelta(days=1)
+                    elif interval == "weekly":
+                        campaign.scheduled_at += timedelta(weeks=1)
+                    elif interval == "monthly":
+                        campaign.scheduled_at += timedelta(days=30)
+                    
+                    campaign.status = CampaignStatus.scheduled
+                    campaign.sent_count = 0
+                    campaign.failed_count = 0
+                else:
+                    campaign.status = CampaignStatus.completed
                 
                 await db.commit()
 
-        if campaign.status != CampaignStatus.STOPPED:
-            if campaign.is_recurring and campaign.scheduled_at:
-                interval = campaign.recurrence_interval or "daily"
-                if interval == "daily":
-                    campaign.scheduled_at += timedelta(days=1)
-                elif interval == "weekly":
-                    campaign.scheduled_at += timedelta(weeks=1)
-                elif interval == "monthly":
-                    campaign.scheduled_at += timedelta(days=30)
-                
-                campaign.status = CampaignStatus.SCHEDULED
-                campaign.sent_count = 0
-                campaign.failed_count = 0
-            else:
-                campaign.status = CampaignStatus.COMPLETED
-            
-            await db.commit()
-
     @staticmethod
     async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None) -> tuple[bool, str]:
-        if campaign.channel == CampaignChannel.EMAIL:
-            if not contact.email:
-                return False, "No email address"
+        if campaign.channel == CampaignChannel.email:
+            if not contact.email: return False, "No email address"
             conf = (project.email_config or {}) if project else {}
             gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
             result = await gateway.send_single(
@@ -228,18 +226,14 @@ class CampaignService:
                 message=campaign.content,
                 context={"subject": campaign.subject or campaign.name},
             )
-            if not result["success"]:
-                return False, result.get("error", "Unknown error")
+            if not result["success"]: return False, result.get("error", "Unknown error")
             return True, None
 
-        if campaign.channel == CampaignChannel.SOCIAL_POST:
+        if campaign.channel == CampaignChannel.social_post:
             content = campaign.content
             if not content or content == "AUTO_GENERATE" or content.strip() == "":
                 ai_conf = project.ai_config or {}
-                content = await AIService.generate_social_post(
-                    f"{project.description or project.name}", 
-                    api_key=ai_conf.get("gemini_api_key")
-                )
+                content = await AIService.generate_social_post(f"{project.description or project.name}", api_key=ai_conf.get("gemini_api_key"))
 
             platforms = campaign.social_platforms or []
             if not platforms: return False, "No platforms selected"
@@ -249,10 +243,9 @@ class CampaignService:
             for platform in platforms:
                 success, msg = await gateway.post_to_platform(platform, content)
                 results.append(f"{platform}: {msg}")
-            
             return True, " | ".join(results)
 
-        if campaign.channel == CampaignChannel.WHATSAPP:
+        if campaign.channel == CampaignChannel.whatsapp:
             if not contact.phone: return False, "No phone number"
             conf = (project.whatsapp_config or {}) if project else {}
             gateway = WatiGateway(conf)
@@ -277,9 +270,9 @@ class CampaignService:
                     "status": log.status,
                     "error_message": log.error_message,
                     "sent_at": log.sent_at.isoformat() if log.sent_at else None,
-                    "contact_email": getattr(contact, 'email', "N/A") if contact else "N/A",
-                    "contact_phone": getattr(contact, 'phone', "N/A") if contact else "N/A",
-                    "contact_name": getattr(contact, 'user_name', "N/A") if contact else "N/A"
+                    "contact_email": getattr(contact, 'email', 'N/A') if contact else 'N/A',
+                    "contact_phone": getattr(contact, 'phone', 'N/A') if contact else 'N/A',
+                    "contact_name": getattr(contact, 'user_name', 'N/A') if contact else 'N/A'
                 })
             return logs
         except Exception as e:

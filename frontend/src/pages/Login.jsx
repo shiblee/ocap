@@ -119,7 +119,7 @@ const Login = () => {
               justifyContent: 'center'
             }}
           >
-             {error}
+             Invalid credentials. Access denied.
           </motion.div>
         )}
 

@@ -5,22 +5,22 @@ import enum
 from datetime import datetime
 
 class CampaignChannel(str, enum.Enum):
-    EMAIL = "email"
-    SMS = "sms"
-    WEB_PUSH = "web_push"
-    IOS_PUSH = "ios_push"
-    ANDROID_PUSH = "android_push"
-    WHATSAPP = "whatsapp"
-    SOCIAL_POST = "social_post"
+    email = "email"
+    sms = "sms"
+    web_push = "web_push"
+    ios_push = "ios_push"
+    android_push = "android_push"
+    whatsapp = "whatsapp"
+    social_post = "social_post"
 
 class CampaignStatus(str, enum.Enum):
-    DRAFT = "draft"
-    SCHEDULED = "scheduled"
-    SENDING = "sending"
-    PAUSED = "paused"
-    STOPPED = "stopped"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    draft = "draft"
+    scheduled = "scheduled"
+    sending = "sending"
+    paused = "paused"
+    stopped = "stopped"
+    completed = "completed"
+    failed = "failed"
 
 class Campaign(Base):
     __tablename__ = "campaigns"
@@ -30,8 +30,8 @@ class Campaign(Base):
     subject = Column(String, nullable=True) # Used for Email
     content = Column(String, nullable=False) # Body content
     
-    channel = Column(SQLEnum(CampaignChannel, values_callable=lambda obj: [e.value for e in obj]), default=CampaignChannel.EMAIL)
-    status = Column(SQLEnum(CampaignStatus, values_callable=lambda obj: [e.value for e in obj]), default=CampaignStatus.DRAFT)
+    channel = Column(SQLEnum(CampaignChannel), default=CampaignChannel.email)
+    status = Column(SQLEnum(CampaignStatus), default=CampaignStatus.draft)
     
     # Progress tracking
     total_contacts = Column(Integer, default=0)
@@ -49,10 +49,6 @@ class Campaign(Base):
     # Project association
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     project = relationship("Project", back_populates="campaigns")
-    
-    # Audit
-    # created_by = Column(Integer, ForeignKey("users.id"))
-    # user = relationship("User", back_populates="campaigns")
     
     logs = relationship("CampaignLog", back_populates="campaign", cascade="all, delete-orphan")
 

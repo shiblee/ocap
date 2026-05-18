@@ -29,12 +29,12 @@ class AnalyticsService:
         
         # 3. Channel Health
         channels = [
-            CampaignChannel.EMAIL, 
-            CampaignChannel.SMS, 
-            CampaignChannel.WHATSAPP, 
-            CampaignChannel.WEB_PUSH, 
-            CampaignChannel.IOS_PUSH, 
-            CampaignChannel.ANDROID_PUSH
+            CampaignChannel.email, 
+            CampaignChannel.sms, 
+            CampaignChannel.whatsapp, 
+            CampaignChannel.web_push, 
+            CampaignChannel.ios_push, 
+            CampaignChannel.android_push
         ]
         
         channel_health = []
@@ -83,7 +83,6 @@ class AnalyticsService:
         stats_map = {d.strftime('%a'): 0 for d in dates}
         
         # Query: sum of sent_count grouped by date(created_at)
-        # Note: func.date is PostgreSQL/SQLite compatible here
         from sqlalchemy import cast, Date
         query = select(
             cast(Campaign.created_at, Date).label("day"),
@@ -110,7 +109,7 @@ class AnalyticsService:
         
         if not project:
             return ["Email", "SMS", "WhatsApp", "Push Notifications"]
- 
+  
         warnings = []
         
         # Email Check

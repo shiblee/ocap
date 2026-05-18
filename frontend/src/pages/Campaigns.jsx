@@ -28,7 +28,8 @@ const StatusBadge = ({ status }) => {
     scheduled: { bg: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', label: 'Scheduled' },
     sending: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Sending', animate: true },
     completed: { bg: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', label: 'Completed' },
-    failed: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Failed' }
+    failed: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Failed' },
+    stopped: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Stopped' }
   };
 
   const style = styles[status] || styles.draft;
@@ -86,7 +87,6 @@ const Campaigns = () => {
     if (!projectLoading) {
       fetchCampaigns();
     }
-    // Poll for updates every 3 seconds if there are sending campaigns
     const interval = setInterval(fetchCampaigns, 3000);
     return () => clearInterval(interval);
   }, [page, searchTerm, activeProject, projectLoading]);
@@ -98,7 +98,6 @@ const Campaigns = () => {
       return;
     }
     try {
-      // project_id is automatically added by api.js interceptor if available in localStorage
       const res = await api.get(`/campaigns/?skip=${page * limit}&limit=${limit}&search=${searchTerm}`);
       setCampaigns(res.data);
     } catch (err) {
@@ -109,7 +108,7 @@ const Campaigns = () => {
   };
 
   const handleStart = async (id) => {
-    if (!window.confirm("Are you sure you want to send the email to all the users?")) return;
+    if (!window.confirm("Are you sure you want to start the campaign?")) return;
     try {
       await api.post(`/campaigns/${id}/start`);
       fetchCampaigns();
@@ -121,10 +120,10 @@ const Campaigns = () => {
   const handleStop = async (id) => {
     if (!window.confirm("Are you sure you want to stop this campaign?")) return;
     try {
-      await api.patch(`/campaigns/${id}/stop`);
+      await api.post(`/campaigns/${id}/stop`);
       fetchCampaigns();
     } catch (err) {
-      alert("Failed to stop campaign.");
+      alert("Failed to stop campaign. " + (err.response?.data?.detail || ""));
     }
   };
 
@@ -169,16 +168,7 @@ const Campaigns = () => {
             cursor: 'pointer',
             background: '#4f46e5',
             boxShadow: '0 10px 25px rgba(79, 70, 229, 0.5)',
-            fontSize: '15px',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = '#4338ca';
-            e.currentTarget.style.transform = 'translateY(-2px)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = '#4f46e5';
-            e.currentTarget.style.transform = 'translateY(0)';
+            fontSize: '15px'
           }}
         >
           <Plus size={20} /> Create Campaign
@@ -195,7 +185,6 @@ const Campaigns = () => {
         </div>
       )}
 
-      {/* Search Bar */}
       <div className="glass-effect" style={{ padding: '16px', borderRadius: '16px', marginBottom: '24px', display: 'flex', gap: '16px' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={18} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -205,22 +194,13 @@ const Campaigns = () => {
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
-              setPage(0); // Reset to first page on search
+              setPage(0);
             }}
-            style={{ 
-              width: '100%', 
-              padding: '10px 10px 10px 40px', 
-              background: 'rgba(15, 23, 42, 0.5)', 
-              border: '1px solid var(--border-glass)', 
-              borderRadius: '10px',
-              color: 'white',
-              outline: 'none'
-            }} 
+            style={{ width: '100%', padding: '10px 10px 10px 40px', background: 'rgba(15, 23, 42, 0.5)', border: '1px solid var(--border-glass)', borderRadius: '10px', color: 'white', outline: 'none' }} 
           />
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="glass-effect" style={{ borderRadius: '24px', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -236,12 +216,10 @@ const Campaigns = () => {
           <tbody>
             {campaigns.map((camp) => {
               const total = camp.channel === 'social_post' ? Math.max(camp.total_contacts, 1) : camp.total_contacts;
-              const progress = total > 0 
-                ? Math.round((camp.sent_count / total) * 100) 
-                : 0;
+              const progress = total > 0 ? Math.round((camp.sent_count / total) * 100) : 0;
                 
               return (
-                <tr key={camp.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: '0.2s' }} className="table-row-hover">
+                <tr key={camp.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <td style={{ padding: '24px' }}>
                     <div style={{ fontWeight: '600', color: '#fff', fontSize: '15px' }}>{camp.name}</div>
                     <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{camp.subject || 'No subject'}</div>
@@ -249,12 +227,10 @@ const Campaigns = () => {
                   <td style={{ padding: '24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1', fontSize: '14px' }}>
                       <ChannelIcon channel={camp.channel} />
-                      <span style={{ textTransform: 'uppercase', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px' }}>{camp.channel.replace('_', ' ')}</span>
+                      <span style={{ textTransform: 'uppercase', fontSize: '11px', fontWeight: '700' }}>{camp.channel.replace('_', ' ')}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '24px' }}>
-                    <StatusBadge status={camp.status} />
-                  </td>
+                  <td style={{ padding: '24px' }}><StatusBadge status={camp.status} /></td>
                   <td style={{ padding: '24px' }}>
                     <div style={{ width: '140px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
@@ -262,104 +238,24 @@ const Campaigns = () => {
                         <span>{progress}%</span>
                       </div>
                       <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ 
-                          width: `${progress}%`, 
-                          height: '100%', 
-                          background: camp.status === 'stopped' ? '#ef4444' : 'linear-gradient(90deg, #6366f1, #a855f7)',
-                          transition: 'width 0.5s ease'
-                        }} />
+                        <div style={{ width: `${progress}%`, height: '100%', background: camp.status === 'stopped' ? '#ef4444' : 'linear-gradient(90deg, #6366f1, #a855f7)' }} />
                       </div>
                     </div>
                   </td>
                   <td style={{ padding: '24px', color: '#64748b', fontSize: '14px' }}>
-                    {camp.status === 'scheduled' && camp.scheduled_at ? (
-                      <div>
-                        <div style={{ color: '#6366f1', fontWeight: '600' }}>Scheduled For:</div>
-                        {new Date(camp.scheduled_at + 'Z').toLocaleString()}
-                      </div>
-                    ) : (
-                      new Date(camp.created_at + 'Z').toLocaleDateString()
-                    )}
+                    {new Date(camp.created_at + 'Z').toLocaleDateString()}
                   </td>
                   <td style={{ padding: '24px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                       {camp.status === 'sending' ? (
-                        <button 
-                          onClick={() => handleStop(camp.id)}
-                          style={{
-                            padding: '6px 12px', borderRadius: '8px', border: '1px solid #ef4444',
-                            background: 'transparent', color: '#ef4444', fontSize: '12px',
-                            fontWeight: '600', cursor: 'pointer'
-                          }}
-                        >
-                          Stop
-                        </button>
+                        <button onClick={() => handleStop(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Stop</button>
                       ) : (
                         (camp.status === 'draft' || camp.status === 'stopped') && (
-                          <button 
-                            onClick={() => handleStart(camp.id)}
-                            style={{
-                              padding: '6px 12px', borderRadius: '8px', border: '1px solid #22c55e',
-                              background: 'transparent', color: '#22c55e', fontSize: '12px',
-                              fontWeight: '600', cursor: 'pointer'
-                            }}
-                          >
-                            {camp.status === 'stopped' ? 'Resume' : 'Start'}
-                          </button>
+                          <button onClick={() => handleStart(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #22c55e', background: 'transparent', color: '#22c55e', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>{camp.status === 'stopped' ? 'Resume' : 'Start'}</button>
                         )
                       )}
-                      
-                      {(camp.status === 'draft' || camp.status === 'scheduled') && (
-                        <button 
-                          onClick={() => handleEdit(camp)}
-                          style={{
-                            padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '12px',
-                            fontWeight: '600', cursor: 'pointer'
-                          }}
-                        >
-                          Edit
-                        </button>
-                      )}
-
-                      {camp.status === 'scheduled' && (
-                        <button 
-                          onClick={() => handleStop(camp.id)} // stop will revert to stopped, we can use it to cancel
-                          style={{
-                            padding: '6px 12px', borderRadius: '8px', border: '1px solid #f59e0b',
-                            background: 'transparent', color: '#f59e0b', fontSize: '12px',
-                            fontWeight: '600', cursor: 'pointer'
-                          }}
-                          title="Cancel Schedule"
-                        >
-                          Cancel
-                        </button>
-                      )}
-
-                      {(camp.status === 'completed' || camp.status === 'stopped' || camp.sent_count > 0) && (
-                        <button 
-                          onClick={() => setViewLogsCampaignId(camp.id)}
-                          style={{
-                            padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'rgba(255,255,255,0.05)', color: '#fff', 
-                            cursor: 'pointer'
-                          }}
-                          title="View Logs"
-                        >
-                          <List size={16} />
-                        </button>
-                      )}
-
-                      <button 
-                        onClick={() => handleDelete(camp.id)}
-                        style={{
-                          padding: '6px 8px', borderRadius: '8px', border: 'none',
-                          background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <X size={16} />
-                      </button>
+                      <button onClick={() => setViewLogsCampaignId(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}><List size={16} /></button>
+                      <button onClick={() => handleDelete(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer' }}><X size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -367,56 +263,10 @@ const Campaigns = () => {
             })}
           </tbody>
         </table>
-
-        {/* Pagination Footer */}
-        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-glass)' }}>
-          <span style={{ color: '#64748b', fontSize: '14px' }}>Showing page {page + 1}</span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              disabled={page === 0}
-              onClick={() => setPage(p => p - 1)}
-              style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-glass)', background: 'none', color: page === 0 ? '#334155' : 'white', cursor: page === 0 ? 'not-allowed' : 'pointer' }}
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button 
-              disabled={campaigns.length < limit}
-              onClick={() => setPage(p => p + 1)}
-              style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-glass)', background: 'none', color: campaigns.length < limit ? '#334155' : 'white', cursor: campaigns.length < limit ? 'not-allowed' : 'pointer' }}
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-
-        {campaigns.length === 0 && !loading && (
-          <div style={{ padding: '80px', textAlign: 'center', color: '#64748b' }}>
-            <div style={{ marginBottom: '20px', opacity: 0.5 }}><Send size={48} style={{ margin: '0 auto' }} /></div>
-            <h3>No campaigns found</h3>
-            <p>Create your first campaign to start messaging your audience.</p>
-          </div>
-        )}
       </div>
 
-      <CreateCampaignModal 
-        isOpen={isModalOpen} 
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingCampaign(null);
-        }}
-        campaign={editingCampaign}
-        onSuccess={() => {
-          setIsModalOpen(false);
-          setEditingCampaign(null);
-          fetchCampaigns();
-        }}
-      />
-
-      <CampaignLogsModal 
-        isOpen={!!viewLogsCampaignId} 
-        onClose={() => setViewLogsCampaignId(null)} 
-        campaignId={viewLogsCampaignId} 
-      />
+      <CreateCampaignModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingCampaign(null); }} campaign={editingCampaign} onSuccess={() => { setIsModalOpen(false); setEditingCampaign(null); fetchCampaigns(); }} />
+      <CampaignLogsModal isOpen={!!viewLogsCampaignId} onClose={() => setViewLogsCampaignId(null)} campaignId={viewLogsCampaignId} />
     </div>
   );
 };
