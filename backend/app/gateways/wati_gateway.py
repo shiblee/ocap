@@ -26,34 +26,67 @@ class WatiGateway(BaseGateway):
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
+        self.template_name = config.get("wati_template_name", "").strip()
 
     async def send_single(self, recipient: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Send a session message via WATI.
+        Send a session message or a template message via WATI.
         recipient: Phone number with country code (e.g., 919876543210)
         """
         if not self.endpoint or not self.token:
             return {"success": False, "error": "WATI configuration incomplete (missing endpoint or token)."}
 
-        if not message:
-            return {"success": False, "error": "Internal Error: Message content is empty."}
-
         # WATI expects the phone number without '+'
         clean_recipient = str(recipient).lstrip("+")
         base_url = self.endpoint
-        
-        # Encoded message for query parameter if needed
-        encoded_message = urllib.parse.quote(message)
-        url = f"{base_url}/api/v1/sendSessionMessage/{clean_recipient}?messageText={encoded_message}"
-        
-        logger.info(f"WATI: Attempting to send message to URL: {url}")
-        
-        # Include whatsappNumber in body too as some versions require it
-        payload = {
-            "whatsappNumber": clean_recipient,
-            "messageText": message,
-            "body": message
-        }
+
+        # Check if we should send a template message
+        template_name = None
+        if context and context.get("template_name"):
+            template_name = context.get("template_name")
+        elif message and message.startswith("template:"):
+            template_name = message.replace("template:", "").strip()
+        elif self.template_name:
+            template_name = self.template_name
+
+        if template_name:
+            # Construct WATI template message URL
+            url = f"{base_url}/api/v1/sendTemplateMessage?whatsappNumber={clean_recipient}"
+            
+            # Wati expects parameters in format [{"name": "name", "value": "value"}]
+            parameters = []
+            if context and context.get("parameters"):
+                parameters = context.get("parameters")
+            elif context and context.get("contact"):
+                contact = context["contact"]
+                parameters = [
+                    {"name": "name", "value": getattr(contact, "user_name", "") or ""},
+                    {"name": "email", "value": getattr(contact, "email", "") or ""},
+                    {"name": "phone", "value": getattr(contact, "phone", "") or ""}
+                ]
+
+            payload = {
+                "template_name": template_name,
+                "broadcast_name": "OCAP Broadcast",
+                "parameters": parameters
+            }
+            logger.info(f"WATI: Attempting to send template message to {recipient} via {url}")
+        else:
+            if not message:
+                return {"success": False, "error": "Internal Error: Message content is empty."}
+
+            # Encoded message for query parameter
+            encoded_message = urllib.parse.quote(message)
+            url = f"{base_url}/api/v1/sendSessionMessage/{clean_recipient}?messageText={encoded_message}"
+            
+            logger.info(f"WATI: Attempting to send session message to URL: {url}")
+            
+            # Include whatsappNumber in body too as some versions require it
+            payload = {
+                "whatsappNumber": clean_recipient,
+                "messageText": message,
+                "body": message
+            }
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -63,12 +96,20 @@ class WatiGateway(BaseGateway):
                 
                 if response.status_code == 200:
                     data = response.json()
-                    if data.get("result") == "success" or data.get("validWhatsAppNumber") is True or data.get("status") == "success":
+                    if data.get("result") == "success" or data.get("validWhatsAppNumber") is True or data.get("status") == "success" or data.get("result") is True:
                         return {"success": True, "recipient": recipient, "message_id": data.get("id")}
                     else:
                         # Return detailed error from API if available
                         err_msg = data.get("errors") or data.get("message") or data.get("info") or f"API Response: {data}"
-                        return {"success": False, "error": err_msg}
+                        err_str = str(err_msg)
+                        if "Ticket has been expired" in err_str:
+                            err_str = (
+                                f"WhatsApp session expired (Ticket has been expired). "
+                                f"To send a free-form message, please text your WhatsApp Business number first from +{clean_recipient} "
+                                f"to open a 24-hour session window. Alternatively, configure a pre-approved WATI Template Name "
+                                f"in your project settings to bypass this session window."
+                            )
+                        return {"success": False, "error": err_str}
                 else:
                     return {"success": False, "error": f"WATI Error {response.status_code}: {response.text}"}
         except Exception as e:

@@ -29,7 +29,7 @@ const Settings = () => {
     primary_color: '#6366f1',
     email_config: { provider: 'smtp', host: '', port: 587, user: '', password: '', sender: '', sender_name: '', encryption: 'tls', aws_region: 'ap-south-1', aws_access_key_id: '', aws_secret_access_key: '' },
     sms_config: { provider: 'twilio', sid: '', token: '', from: '' },
-    whatsapp_config: { wati_endpoint: '', wati_token: '', provider: 'wati' },
+    whatsapp_config: { wati_endpoint: '', wati_token: '', wati_template_name: '', provider: 'wati' },
     push_config: { server_key: '', vapid_public: '', vapid_private: '' },
     ai_config: { gemini_api_key: '' },
     social_config: { 
@@ -66,7 +66,7 @@ const Settings = () => {
           ...(projectData.email_config || {})
         },
         sms_config: projectData.sms_config || { provider: 'twilio', sid: '', token: '', from: '' },
-        whatsapp_config: projectData.whatsapp_config || { wati_endpoint: '', wati_token: '', provider: 'wati' },
+        whatsapp_config: { wati_endpoint: '', wati_token: '', wati_template_name: '', provider: 'wati', ...(projectData.whatsapp_config || {}) },
         push_config: projectData.push_config || { server_key: '', vapid_public: '', vapid_private: '' },
         ai_config: projectData.ai_config || { gemini_api_key: '' },
         social_config: projectData.social_config || { 
@@ -416,6 +416,18 @@ const Settings = () => {
                         value={formData.whatsapp_config.wati_token || ''} 
                         onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, wati_token: e.target.value}})} 
                       />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>WATI Template Name (Optional)</label>
+                      <input 
+                        style={inputStyle} 
+                        placeholder="e.g. welcome_message"
+                        value={formData.whatsapp_config.wati_template_name || ''} 
+                        onChange={e => setFormData({...formData, whatsapp_config: {...formData.whatsapp_config, wati_template_name: e.target.value}})} 
+                      />
+                      <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', lineHeight: '1.5' }}>
+                        If specified, connection verification and campaigns will bypass the 24-hour conversation window restriction by sending this pre-approved template.
+                      </p>
                     </div>
                   </div>
                 </section>

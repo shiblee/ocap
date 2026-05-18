@@ -85,9 +85,15 @@ class TestService:
             return False, msg
             
         # Send a real test message
+        template_name = conf.get("wati_template_name")
         test_message = "Hello from OCAP! This is a test message to verify your WATI WhatsApp settings."
+        if template_name:
+            test_message = f"template:{template_name}"
+            
         res = await gateway.send_single(recipient=recipient, message=test_message)
         
         if res["success"]:
+            if template_name:
+                return True, f"WhatsApp test template message '{template_name}' sent successfully to {recipient}!"
             return True, f"WhatsApp test message sent successfully to {recipient}!"
         return False, res.get("error", "Failed to send WhatsApp test message.")
