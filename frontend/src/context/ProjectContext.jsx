@@ -23,10 +23,12 @@ export const ProjectProvider = ({ children }) => {
         if (found) {
           setActiveProject(found);
         } else if (res.data.length > 0) {
-          selectProject(res.data[0]);
+          setActiveProject(res.data[0]);
+          localStorage.setItem('active_project_id', res.data[0].id);
         }
       } else if (res.data.length > 0) {
-        selectProject(res.data[0]);
+        setActiveProject(res.data[0]);
+        localStorage.setItem('active_project_id', res.data[0].id);
       }
     } catch (err) {
       console.error("Failed to fetch projects", err);
@@ -39,9 +41,7 @@ export const ProjectProvider = ({ children }) => {
     setActiveProject(project);
     if (project) {
       localStorage.setItem('active_project_id', project.id);
-      // Reload page to ensure all components refresh with new project context
-      // Alternatively, we can rely on context updates, but reloading is safer for full isolation
-      window.location.reload(); 
+      // Removed window.location.reload() to prevent slow page reloads, React context will handle it natively.
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Clock, Search, User, Phone, Mail } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Clock, Search, User, Phone, Mail, Send } from 'lucide-react';
 import api from '../utils/api';
 
 const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
@@ -28,12 +28,17 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
 
   if (!isOpen) return null;
 
+  const successCount = logs.filter(log => log.status === 'success').length;
+  const failedCount = logs.filter(log => log.status === 'failed').length;
+  const totalCount = logs.length;
+
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       background: 'rgba(0,0,0,0.85)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '20px', backdropFilter: 'blur(10px)'
+      display: 'grid', placeItems: 'center',
+      padding: '40px 20px', backdropFilter: 'blur(10px)',
+      overflowY: 'auto'
     }}>
       <div className="glass-effect" style={{
         width: '100%', maxWidth: '950px', borderRadius: '28px',
@@ -54,6 +59,99 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
         </div>
 
         <div style={{ padding: '24px 32px', overflowY: 'auto', flex: 1 }}>
+          {!loading && !error && logs.length > 0 && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '20px',
+              marginBottom: '28px'
+            }}>
+              {/* Total Sent */}
+              <div className="nav-hover" style={{
+                background: 'rgba(99, 102, 241, 0.05)',
+                border: '1px solid rgba(99, 102, 241, 0.15)',
+                borderRadius: '16px',
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                transition: 'all 0.2s ease',
+              }}>
+                <div style={{
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#818cf8'
+                }}>
+                  <Send size={22} />
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Total Attempts</div>
+                  <div style={{ color: '#fff', fontSize: '24px', fontWeight: '700', marginTop: '4px' }}>{totalCount}</div>
+                </div>
+              </div>
+
+              {/* Successful */}
+              <div className="nav-hover" style={{
+                background: 'rgba(34, 197, 94, 0.05)',
+                border: '1px solid rgba(34, 197, 94, 0.15)',
+                borderRadius: '16px',
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                transition: 'all 0.2s ease',
+              }}>
+                <div style={{
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#4ade80'
+                }}>
+                  <CheckCircle size={22} />
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Sent Successfully</div>
+                  <div style={{ color: '#22c55e', fontSize: '24px', fontWeight: '700', marginTop: '4px' }}>{successCount}</div>
+                </div>
+              </div>
+
+              {/* Failed */}
+              <div className="nav-hover" style={{
+                background: 'rgba(239, 68, 68, 0.05)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+                borderRadius: '16px',
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                transition: 'all 0.2s ease',
+              }}>
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f87171'
+                }}>
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Failed Delivery</div>
+                  <div style={{ color: '#ef4444', fontSize: '24px', fontWeight: '700', marginTop: '4px' }}>{failedCount}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px' }}>Loading logs...</div>
           ) : error ? (

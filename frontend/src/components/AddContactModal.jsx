@@ -67,11 +67,11 @@ const AddContactModal = ({ isOpen, onClose, onSuccess }) => {
       top: 0, left: 0, right: 0, bottom: 0,
       background: 'rgba(0,0,0,0.85)',
       zIndex: 1000,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      backdropFilter: 'blur(10px)'
+      display: 'grid',
+      placeItems: 'center',
+      padding: '40px 20px',
+      backdropFilter: 'blur(10px)',
+      overflowY: 'auto'
     }}>
       <div className="glass-effect" style={{
         width: '100%',

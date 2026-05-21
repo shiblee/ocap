@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, Mail, MessageSquare, Globe, Smartphone, ChevronRight, ChevronLeft, Save, AlertCircle } from 'lucide-react';
+import { X, Send, Mail, MessageSquare, Globe, Smartphone, ChevronRight, ChevronLeft, Save, AlertCircle, Code, Edit3, Upload } from 'lucide-react';
 import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
 import Quill from 'quill';
@@ -10,6 +10,8 @@ const QuillEditor = ({ value, onChange }) => {
   const quillRef = React.useRef(null);
 
   React.useEffect(() => {
+    const parentContainer = editorRef.current?.parentElement;
+    
     if (editorRef.current && !quillRef.current) {
       quillRef.current = new Quill(editorRef.current, {
         theme: 'snow',
@@ -32,6 +34,14 @@ const QuillEditor = ({ value, onChange }) => {
         quillRef.current.clipboard.dangerouslyPasteHTML(value);
       }
     }
+
+    return () => {
+      if (parentContainer) {
+        const toolbars = parentContainer.querySelectorAll('.ql-toolbar');
+        toolbars.forEach(tb => tb.remove());
+      }
+      quillRef.current = null;
+    };
   }, []);
 
   React.useEffect(() => {
@@ -44,7 +54,7 @@ const QuillEditor = ({ value, onChange }) => {
     }
   }, [value]);
 
-  return <div ref={editorRef} style={{ minHeight: '350px', background: '#fff', color: '#000', borderRadius: '0 0 10px 10px' }} />;
+  return <div ref={editorRef} style={{ minHeight: '350px', background: '#fff', color: '#000', borderRadius: '0 0 10px 10px', overflow: 'auto', maxWidth: '100%' }} />;
 };
 
 const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
@@ -52,6 +62,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { activeProject } = useProject();
+  const [editorMode, setEditorMode] = useState('visual'); // 'visual' or 'html'
   
   const [formData, setFormData] = useState({
     name: '',
@@ -63,6 +74,18 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
     is_recurring: false,
     recurrence_interval: 'daily'
   });
+
+  const handleHtmlImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData(prev => ({ ...prev, content: event.target.result }));
+      setEditorMode('html'); // switch to HTML view to show raw code
+    };
+    reader.readAsText(file);
+  };
+
   const [launchMode, setLaunchMode] = useState('draft'); // 'draft', 'now', 'schedule'
   const [showPreview, setShowPreview] = useState(false);
   const [testEmail, setTestEmail] = useState('');
@@ -187,18 +210,9 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.85)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '20px', backdropFilter: 'blur(10px)'
-    }}>
-      <div className="glass-effect" style={{
-        width: '100%', maxWidth: '800px', borderRadius: '28px',
-        background: 'rgba(30, 41, 59, 0.95)', overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-      }}>
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="cm-overlay">
+      <div className="glass-effect cm-box">
+        <div className="cm-header">
           <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '8px', borderRadius: '10px' }}>
               <Send size={22} color="#6366f1" />
@@ -210,7 +224,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '32px' }}>
+        <form onSubmit={handleSubmit} className="cm-form">
           {step === 1 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div>
@@ -299,16 +313,138 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
               )}
 
               <div>
-                <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500', display: 'block', marginBottom: '8px' }}>
-                  {formData.channel === 'email' ? 'Email Body Template' : 'Message Text'}
-                </label>
+                <div className="cm-editor-meta">
+                  <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>
+                    {formData.channel === 'email' ? 'Email Body Template' : 'Message Text'}
+                  </label>
+                  
+                  {formData.channel === 'email' && (
+                    <div className="cm-editor-controls">
+                      {/* Toggle Modes */}
+                      <div style={{
+                        display: 'flex',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        padding: '4px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255,255,255,0.05)'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditorMode('visual')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            background: editorMode === 'visual' ? '#4f46e5' : 'transparent',
+                            color: editorMode === 'visual' ? '#fff' : '#94a3b8'
+                          }}
+                        >
+                          <Edit3 size={14} /> Visual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditorMode('html')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            background: editorMode === 'html' ? '#4f46e5' : 'transparent',
+                            color: editorMode === 'html' ? '#fff' : '#94a3b8'
+                          }}
+                        >
+                          <Code size={14} /> HTML Code
+                        </button>
+                      </div>
+
+                      {/* File Upload Button */}
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        color: '#a5b4fc'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                      >
+                        <Upload size={14} /> Import HTML
+                        <input
+                          type="file"
+                          accept=".html,.htm"
+                          onChange={handleHtmlImport}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+                
                 {formData.channel === 'email' ? (
-                  <div style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <QuillEditor 
-                      value={formData.content} 
-                      onChange={(val) => setFormData({...formData, content: val})} 
-                    />
-                  </div>
+                  editorMode === 'visual' ? (
+                    <div style={{ background: '#fff', borderRadius: '10px', overflowX: 'auto', overflowY: 'auto', border: '1px solid rgba(255, 255, 255, 0.1)', maxWidth: '100%' }}>
+                      <QuillEditor 
+                        value={formData.content} 
+                        onChange={(val) => setFormData({...formData, content: val})} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)',
+                      overflow: 'auto',
+                      maxWidth: '100%'
+                    }}>
+                      <textarea
+                        rows={16}
+                        style={{
+                          width: '100%',
+                          padding: '16px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#38bdf8',
+                          fontFamily: "'Fira Code', 'Courier New', Courier, monospace",
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          outline: 'none',
+                          resize: 'vertical',
+                          minHeight: '350px'
+                        }}
+                        placeholder="<!-- Paste or upload your custom HTML email template here -->"
+                        value={formData.content}
+                        onChange={(e) => setFormData({...formData, content: e.target.value})}
+                        required
+                      />
+                    </div>
+                  )
                 ) : (
                   <textarea 
                     rows={6}
@@ -319,36 +455,39 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                     required
                   />
                 )}
+                
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                    <p style={{ fontSize: '11px', color: '#475569' }}>
                     Tips: Use a clear call to action for better engagement.
                   </p>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!activeProject) return;
-                      setLoading(true);
-                      try {
-                        const res = await api.post('/ai/generate-post', { 
-                          project_id: activeProject.id,
-                          platform: formData.channel === 'social_post' ? (formData.social_platforms[0] || 'social media') : 'email'
-                        });
-                        setFormData({...formData, content: res.data.content});
-                      } catch (err) {
-                        alert(err.response?.data?.detail || "AI Generation failed. Check Gemini API key in Settings.");
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    style={{ 
-                      padding: '8px 16px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', 
-                      border: '1px solid rgba(99, 102, 241, 0.3)', color: '#a5b4fc', 
-                      fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: '6px'
-                    }}
-                  >
-                    ✨ Generate with Gemini
-                  </button>
+                  {formData.channel === 'social_post' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!activeProject) return;
+                        setLoading(true);
+                        try {
+                          const res = await api.post('/ai/generate-post', { 
+                            project_id: activeProject.id,
+                            platform: formData.channel === 'social_post' ? (formData.social_platforms[0] || 'social media') : 'email'
+                          });
+                          setFormData({...formData, content: res.data.content});
+                        } catch (err) {
+                          alert(err.response?.data?.detail || "AI Generation failed. Check Gemini API key in Settings.");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      style={{ 
+                        padding: '8px 16px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', 
+                        border: '1px solid rgba(99, 102, 241, 0.3)', color: '#a5b4fc', 
+                        fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '6px'
+                      }}
+                    >
+                      ✨ Generate with Gemini
+                    </button>
+                  )}
                 </div>
                 
                 {formData.channel === 'email' && (
@@ -531,7 +670,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
               <h3 style={{ color: '#0f172a', margin: 0 }}>Template Preview</h3>
               <button onClick={() => setShowPreview(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}><X size={24} /></button>
             </div>
-            <div style={{ padding: '32px', overflowY: 'auto', flex: 1, color: '#0f172a' }} dangerouslySetInnerHTML={{ __html: formData.content }} />
+            <div className="preview-content" style={{ padding: '32px', overflow: 'auto', flex: 1, color: '#0f172a', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: formData.content }} />
           </div>
         </div>
       )}

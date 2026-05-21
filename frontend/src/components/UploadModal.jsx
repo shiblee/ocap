@@ -12,6 +12,22 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
   const [error, setError] = useState('');
   const { activeProject } = useProject();
 
+  const downloadSampleCSV = () => {
+    const csvContent = 
+      "user_name,email,phone,web_token,ios_token,android_token\n" +
+      "John Doe,john.doe@example.com,+1234567890,,,\n" +
+      "Jane Smith,jane.smith@example.com,,,,\n";
+      
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "sample_contacts.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!isOpen) return null;
 
   const handleFileChange = (e) => {
@@ -78,11 +94,11 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
       bottom: 0,
       background: 'rgba(0,0,0,0.8)',
       zIndex: 1000,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      backdropFilter: 'blur(8px)'
+      display: 'grid',
+      placeItems: 'center',
+      padding: '40px 20px',
+      backdropFilter: 'blur(8px)',
+      overflowY: 'auto'
     }}>
       <div className="glass-effect" style={{
         width: '100%',
@@ -117,8 +133,37 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
                 <Upload size={32} color="#6366f1" />
               </div>
               <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Upload CSV File</h3>
-              <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px' }}>Select a .csv file containing your contact data.</p>
+              <p style={{ color: '#94a3b8', marginBottom: '16px', fontSize: '14px' }}>Select a .csv file containing your contact data.</p>
               
+              <div style={{ marginBottom: '24px' }}>
+                <button
+                  type="button"
+                  onClick={downloadSampleCSV}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    color: '#a5b4fc',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)';
+                  }}
+                >
+                  <FileText size={14} /> Download Sample CSV
+                </button>
+              </div>
+
               <label className="vibrant-gradient" style={{ 
                 display: 'inline-block', 
                 padding: '12px 32px', 

@@ -31,9 +31,16 @@ class ContactService:
             # {"email": "csv_email_col", "user_name": "csv_name_col"}
             inv_mapping = {v: k for k, v in mapping.items()}
             
+            def clean_str(val):
+                if val is None or pd.isna(val) or str(val).lower() == 'nan' or str(val).strip() == '':
+                    return None
+                if isinstance(val, float) and val.is_integer():
+                    return str(int(val))
+                return str(val).strip()
+            
             for _, row in df.iterrows():
-                email = row.get(inv_mapping.get('email'))
-                phone = row.get(inv_mapping.get('phone'))
+                email = clean_str(row.get(inv_mapping.get('email')))
+                phone = clean_str(row.get(inv_mapping.get('phone')))
                 
                 if not email and not phone:
                     continue
@@ -49,12 +56,12 @@ class ContactService:
                 contact = result.scalar_one_or_none()
                 
                 contact_data = {
-                    "user_name": row.get(inv_mapping.get('user_name')),
+                    "user_name": clean_str(row.get(inv_mapping.get('user_name'))),
                     "email": email,
                     "phone": phone,
-                    "web_token": row.get(inv_mapping.get('web_token')),
-                    "ios_token": row.get(inv_mapping.get('ios_token')),
-                    "android_token": row.get(inv_mapping.get('android_token')),
+                    "web_token": clean_str(row.get(inv_mapping.get('web_token'))),
+                    "ios_token": clean_str(row.get(inv_mapping.get('ios_token'))),
+                    "android_token": clean_str(row.get(inv_mapping.get('android_token'))),
                     "project_id": project_id
                 }
                 

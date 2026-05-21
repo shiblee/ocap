@@ -4,7 +4,6 @@ import {
   UserPlus, 
   Search, 
   Filter, 
-  Trash2, 
   Upload,
   ChevronLeft,
   ChevronRight,
@@ -196,13 +195,6 @@ const Contacts = () => {
                       style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <Edit2 size={16} /> Edit
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(contact.id)}
-                      className="nav-hover" 
-                      style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>

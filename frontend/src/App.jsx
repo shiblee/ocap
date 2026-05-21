@@ -9,6 +9,7 @@ import Campaigns from './pages/Campaigns';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 import Projects from './pages/Projects';
+import CreateCampaignPage from './pages/CreateCampaignPage';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -25,9 +26,9 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AppLayout = ({ children }) => (
-  <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a' }}>
+  <div className="app-layout">
     <Sidebar />
-    <main style={{ flex: 1, overflowY: 'auto' }}>
+    <main className="app-main">
       {children}
     </main>
   </div>
@@ -93,6 +94,27 @@ function App() {
                 </AppLayout>
               </ProtectedRoute>
             } 
+          />
+
+          <Route
+            path="/campaigns/new"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CreateCampaignPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/campaigns/edit/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CreateCampaignPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
           />
 
         {/* Redirects */}

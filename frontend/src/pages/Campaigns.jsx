@@ -14,13 +14,14 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
-  List
+  List,
+  Edit2
 } from 'lucide-react';
 import api from '../utils/api';
-import CreateCampaignModal from '../components/CreateCampaignModal';
 import CampaignLogsModal from '../components/CampaignLogsModal';
 import { useProject } from '../context/ProjectContext';
 import { Briefcase } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -76,11 +77,11 @@ const ChannelIcon = ({ channel }) => {
 const Campaigns = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewLogsCampaignId, setViewLogsCampaignId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const { activeProject, loading: projectLoading } = useProject();
+  const navigate = useNavigate();
   const limit = 10;
 
   useEffect(() => {
@@ -137,11 +138,8 @@ const Campaigns = () => {
     }
   };
 
-  const [editingCampaign, setEditingCampaign] = useState(null);
-
   const handleEdit = (camp) => {
-    setEditingCampaign(camp);
-    setIsModalOpen(true);
+    navigate(`/campaigns/edit/${camp.id}`);
   };
 
   return (
@@ -152,10 +150,7 @@ const Campaigns = () => {
           <p style={{ color: '#94a3b8' }}>Design, schedule and track your messaging performance.</p>
         </div>
         <button 
-          onClick={() => {
-            setEditingCampaign(null);
-            setIsModalOpen(true);
-          }}
+          onClick={() => navigate('/campaigns/new')}
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -254,8 +249,17 @@ const Campaigns = () => {
                           <button onClick={() => handleStart(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #22c55e', background: 'transparent', color: '#22c55e', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>{camp.status === 'stopped' ? 'Resume' : 'Start'}</button>
                         )
                       )}
-                      <button onClick={() => setViewLogsCampaignId(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}><List size={16} /></button>
-                      <button onClick={() => handleDelete(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer' }}><X size={16} /></button>
+                      {(camp.status === 'draft' || camp.status === 'stopped' || camp.status === 'scheduled') && (
+                        <button 
+                          onClick={() => handleEdit(camp)} 
+                          style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a5b4fc', cursor: 'pointer' }}
+                          title="Edit Campaign"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      )}
+                      <button onClick={() => setViewLogsCampaignId(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }} title="View Logs"><List size={16} /></button>
+                      <button onClick={() => handleDelete(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer' }} title="Delete Campaign"><X size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -265,7 +269,6 @@ const Campaigns = () => {
         </table>
       </div>
 
-      <CreateCampaignModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingCampaign(null); }} campaign={editingCampaign} onSuccess={() => { setIsModalOpen(false); setEditingCampaign(null); fetchCampaigns(); }} />
       <CampaignLogsModal isOpen={!!viewLogsCampaignId} onClose={() => setViewLogsCampaignId(null)} campaignId={viewLogsCampaignId} />
     </div>
   );

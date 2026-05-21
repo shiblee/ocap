@@ -15,27 +15,28 @@ const ProjectSwitcher = () => {
         className="glass-effect"
         style={{
           width: '100%',
-          padding: '12px 16px',
+          padding: '10px 12px',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
+          gap: '10px',
           cursor: 'pointer',
           border: '1px solid rgba(255,255,255,0.05)',
           textAlign: 'left',
-          transition: '0.2s'
+          transition: '0.2s',
+          borderRadius: '12px'
         }}
       >
         <div style={{ 
           background: 'rgba(99, 102, 241, 0.2)', 
-          padding: '8px', 
+          padding: '6px', 
           borderRadius: '8px',
           color: '#6366f1'
         }}>
           <Briefcase size={18} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Active Project</div>
-          <div style={{ color: 'white', fontWeight: '600', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Active Project</div>
+          <div style={{ color: 'white', fontWeight: '600', fontSize: '13.5px', wordBreak: 'break-word', lineHeight: '1.2', marginTop: '2px' }}>
             {activeProject ? activeProject.name : 'Select Project'}
           </div>
         </div>
@@ -48,15 +49,17 @@ const ProjectSwitcher = () => {
             onClick={() => setIsOpen(false)}
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 }}
           />
-          <div className="glass-effect" style={{
+          <div style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
             left: 0,
             right: 0,
             zIndex: 50,
             padding: '8px',
-            background: 'rgba(30, 41, 59, 0.95)',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            background: '#1e293b',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2)',
             maxHeight: '300px',
             overflowY: 'auto'
           }}>

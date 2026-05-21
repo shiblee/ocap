@@ -197,6 +197,12 @@ class CampaignService:
                     
                     await db.commit()
 
+                    # Apply sleep time for email campaigns if configured
+                    if campaign.channel == CampaignChannel.email and project and project.email_config:
+                        sleep_time = float(project.email_config.get("sleep_time", 0))
+                        if sleep_time > 0:
+                            await asyncio.sleep(sleep_time)
+
             if campaign.status != CampaignStatus.stopped:
                 if campaign.is_recurring and campaign.scheduled_at:
                     interval = campaign.recurrence_interval or "daily"
@@ -221,10 +227,17 @@ class CampaignService:
             if not contact.email: return False, "No email address"
             conf = (project.email_config or {}) if project else {}
             gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
+            
+            import re
+            plain_text = re.sub(r'<[^>]*>', '', campaign.content or "")
+            
             result = await gateway.send_single(
                 recipient=contact.email,
-                message=campaign.content,
-                context={"subject": campaign.subject or campaign.name},
+                message=plain_text,
+                context={
+                    "subject": campaign.subject or campaign.name,
+                    "html_body": campaign.content
+                },
             )
             if not result["success"]: return False, result.get("error", "Unknown error")
             return True, None
@@ -277,3 +290,32 @@ class CampaignService:
             return logs
         except Exception as e:
             return []
+
+    @classmethod
+    async def send_test_email(cls, db: AsyncSession, campaign_id: int, test_email: str) -> dict:
+        try:
+            campaign = await cls.get_campaign_by_id(db, campaign_id)
+            if not campaign:
+                return {"success": False, "error": "Campaign not found"}
+                
+            proj_res = await db.execute(select(Project).where(Project.id == campaign.project_id))
+            project = proj_res.scalar_one_or_none()
+            
+            conf = (project.email_config or {}) if project else {}
+            gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
+            
+            import re
+            plain_text = re.sub(r'<[^>]*>', '', campaign.content or "")
+            
+            result = await gateway.send_single(
+                recipient=test_email,
+                message=plain_text,
+                context={
+                    "subject": f"[TEST] {campaign.subject or campaign.name}",
+                    "html_body": campaign.content
+                },
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Error sending test email for campaign {campaign_id}: {e}")
+            return {"success": False, "error": str(e)}
