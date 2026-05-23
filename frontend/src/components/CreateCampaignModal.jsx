@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, Send, Mail, MessageSquare, Globe, Smartphone, ChevronRight, ChevronLeft, Save, AlertCircle, Code, Edit3, Upload } from 'lucide-react';
+import { X, Send, Mail, MessageSquare, Globe, Smartphone, ChevronRight, ChevronLeft, Save, AlertCircle, Code, Edit3, Upload, Zap } from 'lucide-react';
 import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
+import { EmailEditor } from 'react-email-editor';
 
 const QuillEditor = ({ value, onChange }) => {
   const editorRef = React.useRef(null);
@@ -17,10 +18,15 @@ const QuillEditor = ({ value, onChange }) => {
         theme: 'snow',
         modules: {
           toolbar: [
-            [{ 'header': [1, 2, false] }],
-            ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-            [{'list': 'ordered'}, {'list': 'bullet'}],
-            ['link', 'image'],
+            [{ font: [] }, { size: [] }],
+            [{ header: [1, 2, 3, 4, 5, 6, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ color: [] }, { background: [] }],
+            [{ script: 'sub' }, { script: 'super' }],
+            [{ header: 1 }, { header: 2 }, 'blockquote', 'code-block'],
+            [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+            [{ direction: 'rtl' }, { align: [] }],
+            ['link', 'image', 'video', 'formula'],
             ['clean']
           ]
         }
@@ -90,6 +96,19 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testingEmail, setTestingEmail] = useState(false);
+  const [previewMode, setPreviewMode] = useState('desktop'); // 'desktop' or 'mobile'
+  const [previousCampaigns, setPreviousCampaigns] = useState([]);
+
+  const handleEditorModeSwitch = (mode) => {
+    if (mode === 'visual' && editorMode === 'html') {
+      const isComplex = /<html|<body|<table|<style/i.test(formData.content);
+      if (isComplex) {
+        const confirmSwitch = window.confirm("Your template contains advanced HTML structures (like tables or style tags). Switching to Visual mode will strip these styles and break the layout. Do you want to continue?");
+        if (!confirmSwitch) return;
+      }
+    }
+    setEditorMode(mode);
+  };
 
   React.useEffect(() => {
     if (campaign) {
@@ -101,7 +120,8 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         scheduled_at: campaign.scheduled_at ? new Date(campaign.scheduled_at).toISOString().slice(0, 16) : '',
         social_platforms: campaign.social_platforms || [],
         is_recurring: campaign.is_recurring === 1,
-        recurrence_interval: campaign.recurrence_interval || 'daily'
+        recurrence_interval: campaign.recurrence_interval || 'daily',
+        design: campaign.design || null
       });
       if (campaign.status === 'scheduled') {
         setLaunchMode('schedule');
@@ -117,11 +137,55 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         scheduled_at: '',
         social_platforms: [],
         is_recurring: false,
-        recurrence_interval: 'daily'
+        recurrence_interval: 'daily',
+        design: null
       });
       setLaunchMode('draft');
     }
   }, [campaign, isOpen]);
+
+  /* Fetch previous email campaigns for template copying */
+  React.useEffect(() => {
+    if (!isOpen || !activeProject || campaign) return; // Only need this when modal is open for new campaign
+    api.get('/campaigns/?limit=50')
+      .then(res => {
+        const emails = res.data.filter(c => c.channel === 'email' && c.design);
+        setPreviousCampaigns(emails);
+      })
+      .catch(err => console.error("Failed to load previous campaigns:", err));
+  }, [activeProject, campaign, isOpen]);
+
+  const handleCopyTemplate = async (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    
+    if (window.confirm("This will overwrite your current design. Do you want to continue?")) {
+      try {
+        const res = await api.get(`/campaigns/${id}`);
+        const camp = res.data;
+        if (camp.design && emailEditorRef.current?.editor) {
+          emailEditorRef.current.editor.loadDesign(camp.design);
+          setFormData(prev => ({ ...prev, content: camp.content, design: camp.design }));
+        }
+      } catch (err) {
+        alert("Failed to copy template.");
+      }
+    }
+    e.target.value = ''; // Reset dropdown
+  };
+
+  const emailEditorRef = React.useRef(null);
+  const [editorReady, setEditorReady] = useState(false);
+
+  const onLoad = () => {
+    setEditorReady(true);
+  };
+
+  React.useEffect(() => {
+    if (editorReady && formData.design && emailEditorRef.current?.editor) {
+      emailEditorRef.current.editor.loadDesign(formData.design);
+    }
+  }, [editorReady, formData.design]);
 
   if (!isOpen) return null;
 
@@ -140,44 +204,57 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
       return;
     }
 
-    setLoading(true);
-    setError('');
+    const saveToBackend = async (payloadOverride = {}) => {
+      setLoading(true);
+      setError('');
 
-    try {
-      const payload = { 
-        name: formData.name, 
-        channel: formData.channel, 
-        subject: formData.subject, 
-        content: formData.content, 
-        project_id: activeProject.id,
-        social_platforms: formData.social_platforms,
-        is_recurring: formData.is_recurring ? 1 : 0,
-        recurrence_interval: formData.recurrence_interval
-      };
-      
-      let savedCampaignId;
-      if (campaign) {
-        const res = await api.put(`/campaigns/${campaign.id}`, payload);
-        savedCampaignId = res.data.id;
-      } else {
-        const res = await api.post('/campaigns/', payload);
-        savedCampaignId = res.data.id;
+      try {
+        const payload = { 
+          name: formData.name, 
+          channel: formData.channel, 
+          subject: formData.subject, 
+          content: formData.content,
+          design: formData.design,
+          project_id: activeProject.id,
+          social_platforms: formData.social_platforms,
+          is_recurring: formData.is_recurring ? 1 : 0,
+          recurrence_interval: formData.recurrence_interval,
+          ...payloadOverride
+        };
+        
+        let savedCampaignId;
+        if (campaign) {
+          const res = await api.put(`/campaigns/${campaign.id}`, payload);
+          savedCampaignId = res.data.id;
+        } else {
+          const res = await api.post('/campaigns/', payload);
+          savedCampaignId = res.data.id;
+        }
+
+        if (launchMode === 'now') {
+          await api.post(`/campaigns/${savedCampaignId}/start`);
+        } else if (launchMode === 'schedule' && formData.scheduled_at) {
+          await api.post(`/campaigns/${savedCampaignId}/schedule`, {
+            scheduled_at: new Date(formData.scheduled_at).toISOString()
+          });
+        }
+
+        onSuccess();
+        setStep(1);
+      } catch (err) {
+        setError(err.response?.data?.detail || "Failed to save campaign.");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (launchMode === 'now') {
-        await api.post(`/campaigns/${savedCampaignId}/start`);
-      } else if (launchMode === 'schedule' && formData.scheduled_at) {
-        await api.post(`/campaigns/${savedCampaignId}/schedule`, {
-          scheduled_at: new Date(formData.scheduled_at).toISOString()
-        });
-      }
-
-      onSuccess();
-      setStep(1);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to save campaign.");
-    } finally {
-      setLoading(false);
+    if (formData.channel === 'email' && emailEditorRef.current && emailEditorRef.current.editor) {
+      emailEditorRef.current.editor.exportHtml((data) => {
+        const { design, html } = data;
+        saveToBackend({ content: html, design: design });
+      });
+    } else {
+      saveToBackend();
     }
   };
 
@@ -194,6 +271,18 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
       alert(err.response?.data?.detail || "Failed to send test email.");
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handlePreviewClick = () => {
+    if (formData.channel === 'email' && emailEditorRef.current && emailEditorRef.current.editor) {
+      emailEditorRef.current.editor.exportHtml((data) => {
+        const { design, html } = data;
+        setFormData(prev => ({ ...prev, content: html, design }));
+        setShowPreview(true);
+      });
+    } else {
+      setShowPreview(true);
     }
   };
 
@@ -311,140 +400,63 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                   />
                 </div>
               )}
+              
+              {!campaign && formData.channel === 'email' && previousCampaigns.length > 0 && (
+                <div>
+                  <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500', display: 'block', marginBottom: '8px' }}>
+                    Copy From Previous Template
+                  </label>
+                  <select
+                    style={{ ...inputStyle, color: '#e2e8f0' }}
+                    onChange={handleCopyTemplate}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Select a previous campaign --</option>
+                    {previousCampaigns.map(camp => (
+                      <option key={camp.id} value={camp.id} style={{ background: '#1e293b' }}>
+                        {camp.name} {camp.subject ? `(${camp.subject})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
-                <div className="cm-editor-meta">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>
                     {formData.channel === 'email' ? 'Email Body Template' : 'Message Text'}
                   </label>
                   
                   {formData.channel === 'email' && (
-                    <div className="cm-editor-controls">
-                      {/* Toggle Modes */}
-                      <div style={{
-                        display: 'flex',
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        padding: '4px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255,255,255,0.05)'
-                      }}>
-                        <button
-                          type="button"
-                          onClick={() => setEditorMode('visual')}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            background: editorMode === 'visual' ? '#4f46e5' : 'transparent',
-                            color: editorMode === 'visual' ? '#fff' : '#94a3b8'
-                          }}
-                        >
-                          <Edit3 size={14} /> Visual
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditorMode('html')}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            background: editorMode === 'html' ? '#4f46e5' : 'transparent',
-                            color: editorMode === 'html' ? '#fff' : '#94a3b8'
-                          }}
-                        >
-                          <Code size={14} /> HTML Code
-                        </button>
-                      </div>
-
-                      {/* File Upload Button */}
-                      <label style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
-                        borderRadius: '10px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        background: 'rgba(99, 102, 241, 0.1)',
-                        border: '1px solid rgba(99, 102, 241, 0.2)',
-                        color: '#a5b4fc'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                      >
-                        <Upload size={14} /> Import HTML
-                        <input
-                          type="file"
-                          accept=".html,.htm"
-                          onChange={handleHtmlImport}
-                          style={{ display: 'none' }}
-                        />
-                      </label>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span>Available Variables:</span>
+                      <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#38bdf8', fontFamily: 'monospace', cursor: 'pointer' }} title="Copy to use in HTML blocks">{`{{user_name}}`}</span>
+                      <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#38bdf8', fontFamily: 'monospace', cursor: 'pointer' }} title="Copy to use in HTML blocks">{`{{email}}`}</span>
                     </div>
                   )}
                 </div>
                 
                 {formData.channel === 'email' ? (
-                  editorMode === 'visual' ? (
-                    <div style={{ background: '#fff', borderRadius: '10px', overflowX: 'auto', overflowY: 'auto', border: '1px solid rgba(255, 255, 255, 0.1)', maxWidth: '100%' }}>
-                      <QuillEditor 
-                        value={formData.content} 
-                        onChange={(val) => setFormData({...formData, content: val})} 
-                      />
-                    </div>
-                  ) : (
-                    <div style={{
-                      background: 'rgba(15, 23, 42, 0.8)',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(99, 102, 241, 0.3)',
-                      boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)',
-                      overflow: 'auto',
-                      maxWidth: '100%'
-                    }}>
-                      <textarea
-                        rows={16}
-                        style={{
-                          width: '100%',
-                          padding: '16px',
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#38bdf8',
-                          fontFamily: "'Fira Code', 'Courier New', Courier, monospace",
-                          fontSize: '14px',
-                          lineHeight: '1.6',
-                          outline: 'none',
-                          resize: 'vertical',
-                          minHeight: '350px'
+                    <div style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)', maxWidth: '100%', minHeight: '600px' }}>
+                      <EmailEditor
+                        ref={emailEditorRef}
+                        onLoad={onLoad}
+                        minHeight="600px"
+                        options={{
+                          displayMode: 'email',
+                          mergeTags: {
+                            user_name: {
+                              name: "User Name",
+                              value: "{{user_name}}"
+                            },
+                            email: {
+                              name: "Email Address",
+                              value: "{{email}}"
+                            }
+                          }
                         }}
-                        placeholder="<!-- Paste or upload your custom HTML email template here -->"
-                        value={formData.content}
-                        onChange={(e) => setFormData({...formData, content: e.target.value})}
-                        required
                       />
                     </div>
-                  )
                 ) : (
                   <textarea 
                     rows={6}
@@ -494,7 +506,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                   <div style={{ marginTop: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
                     <button
                       type="button"
-                      onClick={() => setShowPreview(true)}
+                      onClick={handlePreviewClick}
                       style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #4f46e5', background: 'transparent', color: '#4f46e5', cursor: 'pointer', fontWeight: '600' }}
                     >
                       Preview Template
@@ -670,7 +682,11 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
               <h3 style={{ color: '#0f172a', margin: 0 }}>Template Preview</h3>
               <button onClick={() => setShowPreview(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}><X size={24} /></button>
             </div>
-            <div className="preview-content" style={{ padding: '32px', overflow: 'auto', flex: 1, color: '#0f172a', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: formData.content }} />
+            <iframe
+              title="Template Preview"
+              srcDoc={formData.content || '<p style="text-align:center;color:#94a3b8;font-family:sans-serif;margin-top:20px;">No content to preview</p>'}
+              style={{ width: '100%', height: '100%', border: 'none', flex: 1, background: '#fff', minHeight: '500px' }}
+            />
           </div>
         </div>
       )}

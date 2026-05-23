@@ -9,6 +9,7 @@ import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
+import { EmailEditor } from 'react-email-editor';
 
 /* ─── Quill Editor ─── */
 const QuillEditor = ({ value, onChange }) => {
@@ -26,10 +27,15 @@ const QuillEditor = ({ value, onChange }) => {
         theme: 'snow',
         modules: {
           toolbar: [
-            [{ header: [1, 2, false] }],
-            ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-            [{ list: 'ordered' }, { list: 'bullet' }],
-            ['link', 'image'],
+            [{ font: [] }, { size: [] }],
+            [{ header: [1, 2, 3, 4, 5, 6, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ color: [] }, { background: [] }],
+            [{ script: 'sub' }, { script: 'super' }],
+            [{ header: 1 }, { header: 2 }, 'blockquote', 'code-block'],
+            [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+            [{ direction: 'rtl' }, { align: [] }],
+            ['link', 'image', 'video', 'formula'],
             ['clean'],
           ],
         },
@@ -130,6 +136,8 @@ const CreateCampaignPage = () => {
   const [testEmail, setTestEmail] = useState('');
   const [testingEmail, setTestingEmail] = useState(false);
   const [savedCampaign, setSavedCampaign] = useState(null);
+  const [previewMode, setPreviewMode] = useState('desktop'); // 'desktop' or 'mobile'
+  const [previousCampaigns, setPreviousCampaigns] = useState([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -140,7 +148,21 @@ const CreateCampaignPage = () => {
     social_platforms: [],
     is_recurring: false,
     recurrence_interval: 'daily',
+    design: null,
   });
+
+  const emailEditorRef = React.useRef(null);
+  const [editorReady, setEditorReady] = useState(false);
+
+  const onLoad = () => {
+    setEditorReady(true);
+  };
+
+  useEffect(() => {
+    if (editorReady && formData.design && emailEditorRef.current?.editor) {
+      emailEditorRef.current.editor.loadDesign(formData.design);
+    }
+  }, [editorReady, formData.design]);
 
   /* Fetch campaign for edit */
   useEffect(() => {
@@ -161,6 +183,7 @@ const CreateCampaignPage = () => {
           social_platforms: camp.social_platforms || [],
           is_recurring: camp.is_recurring === 1,
           recurrence_interval: camp.recurrence_interval || 'daily',
+          design: camp.design || null,
         });
         setLaunchMode(camp.status === 'scheduled' ? 'schedule' : 'draft');
         setStep(2); // edit opens directly on step 2
@@ -171,6 +194,36 @@ const CreateCampaignPage = () => {
       }
     })();
   }, [campaignId]);
+
+  /* Fetch previous email campaigns for template copying */
+  useEffect(() => {
+    if (!activeProject || campaignId) return; // Only need this when creating new campaign
+    api.get('/campaigns/?limit=50')
+      .then(res => {
+        const emails = res.data.filter(c => c.channel === 'email' && c.design);
+        setPreviousCampaigns(emails);
+      })
+      .catch(err => console.error("Failed to load previous campaigns:", err));
+  }, [activeProject, campaignId]);
+
+  const handleCopyTemplate = async (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    
+    if (window.confirm("This will overwrite your current design. Do you want to continue?")) {
+      try {
+        const res = await api.get(`/campaigns/${id}`);
+        const camp = res.data;
+        if (camp.design && emailEditorRef.current?.editor) {
+          emailEditorRef.current.editor.loadDesign(camp.design);
+          setFormData(prev => ({ ...prev, content: camp.content, design: camp.design }));
+        }
+      } catch (err) {
+        alert("Failed to copy template.");
+      }
+    }
+    e.target.value = ''; // Reset dropdown
+  };
 
   const channels = [
     { id: 'email',       label: 'Email',             icon: <Mail size={20} />,        color: '#6366f1', desc: 'Send rich emails to your audience' },
@@ -191,46 +244,70 @@ const CreateCampaignPage = () => {
     reader.readAsText(file);
   };
 
+  const handleEditorModeSwitch = (mode) => {
+    if (mode === 'visual' && editorMode === 'html') {
+      const isComplex = /<html|<body|<table|<style/i.test(formData.content);
+      if (isComplex) {
+        const confirmSwitch = window.confirm("Your template contains advanced HTML structures (like tables or style tags). Switching to Visual mode will strip these styles and break the layout. Do you want to continue?");
+        if (!confirmSwitch) return;
+      }
+    }
+    setEditorMode(mode);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (step < 2) { setStep(2); return; }
 
-    setLoading(true);
-    setError('');
-    try {
-      const payload = {
-        name: formData.name,
-        channel: formData.channel,
-        subject: formData.subject,
-        content: formData.content,
-        project_id: activeProject.id,
-        social_platforms: formData.social_platforms,
-        is_recurring: formData.is_recurring ? 1 : 0,
-        recurrence_interval: formData.recurrence_interval,
-      };
+    const saveToBackend = async (payloadOverride = {}) => {
+      setLoading(true);
+      setError('');
+      try {
+        const payload = {
+          name: formData.name,
+          channel: formData.channel,
+          subject: formData.subject,
+          content: formData.content,
+          design: formData.design,
+          project_id: activeProject.id,
+          social_platforms: formData.social_platforms,
+          is_recurring: formData.is_recurring ? 1 : 0,
+          recurrence_interval: formData.recurrence_interval,
+          ...payloadOverride
+        };
 
-      let id;
-      if (campaignId) {
-        const res = await api.put(`/campaigns/${campaignId}`, payload);
-        id = res.data.id;
-      } else {
-        const res = await api.post('/campaigns/', payload);
-        id = res.data.id;
+        let id;
+        if (campaignId) {
+          const res = await api.put(`/campaigns/${campaignId}`, payload);
+          id = res.data.id;
+        } else {
+          const res = await api.post('/campaigns/', payload);
+          id = res.data.id;
+        }
+
+        if (launchMode === 'now') {
+          await api.post(`/campaigns/${id}/start`);
+        } else if (launchMode === 'schedule' && formData.scheduled_at) {
+          await api.post(`/campaigns/${id}/schedule`, {
+            scheduled_at: new Date(formData.scheduled_at).toISOString(),
+          });
+        }
+
+        navigate('/campaigns');
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Failed to save campaign.');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (launchMode === 'now') {
-        await api.post(`/campaigns/${id}/start`);
-      } else if (launchMode === 'schedule' && formData.scheduled_at) {
-        await api.post(`/campaigns/${id}/schedule`, {
-          scheduled_at: new Date(formData.scheduled_at).toISOString(),
-        });
-      }
-
-      navigate('/campaigns');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save campaign.');
-    } finally {
-      setLoading(false);
+    if (formData.channel === 'email' && emailEditorRef.current && emailEditorRef.current.editor) {
+      emailEditorRef.current.editor.exportHtml((data) => {
+        const { design, html } = data;
+        saveToBackend({ content: html, design: design });
+      });
+    } else {
+      saveToBackend();
     }
   };
 
@@ -246,6 +323,18 @@ const CreateCampaignPage = () => {
       alert(err.response?.data?.detail || 'Failed to send test email.');
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handlePreviewClick = () => {
+    if (formData.channel === 'email' && emailEditorRef.current && emailEditorRef.current.editor) {
+      emailEditorRef.current.editor.exportHtml((data) => {
+        const { design, html } = data;
+        setFormData(prev => ({ ...prev, content: html, design }));
+        setShowPreview(true);
+      });
+    } else {
+      setShowPreview(true);
     }
   };
 
@@ -405,19 +494,41 @@ const CreateCampaignPage = () => {
               /* ── STEP 2 ── */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {formData.channel === 'email' && (
-                  <div>
-                    <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Email Subject
-                    </label>
-                    <input
-                      type="text"
-                      style={inputStyle}
-                      placeholder="Enter email subject line"
-                      value={formData.subject}
-                      onChange={e => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                      required
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Email Subject
+                      </label>
+                      <input
+                        type="text"
+                        style={inputStyle}
+                        placeholder="Enter email subject line"
+                        value={formData.subject}
+                        onChange={e => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    
+                    {!campaignId && previousCampaigns.length > 0 && (
+                      <div style={{ marginTop: '4px' }}>
+                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Copy From Previous Template
+                        </label>
+                        <select
+                          style={{ ...inputStyle, color: '#e2e8f0' }}
+                          onChange={handleCopyTemplate}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>-- Select a previous campaign --</option>
+                          {previousCampaigns.map(camp => (
+                            <option key={camp.id} value={camp.id} style={{ background: '#1e293b' }}>
+                              {camp.name} {camp.subject ? `(${camp.subject})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Editor section */}
@@ -429,68 +540,36 @@ const CreateCampaignPage = () => {
                     </label>
 
                     {formData.channel === 'email' && (
-                      <div className="cc-editor-controls">
-                        {/* Visual / HTML toggle */}
-                        <div style={{ display: 'flex', background: 'rgba(15,23,42,0.6)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          {[
-                            { mode: 'visual', label: 'Visual', icon: <Edit3 size={13} /> },
-                            { mode: 'html',   label: 'HTML Code', icon: <Code size={13} /> },
-                          ].map(({ mode, label, icon }) => (
-                            <button
-                              key={mode}
-                              type="button"
-                              onClick={() => setEditorMode(mode)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '5px 10px', borderRadius: '8px', border: 'none',
-                                fontSize: '12px', fontWeight: '600', cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                whiteSpace: 'nowrap',
-                                background: editorMode === mode ? '#4f46e5' : 'transparent',
-                                color: editorMode === mode ? '#fff' : '#94a3b8',
-                              }}
-                            >
-                              {icon} {label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Import HTML */}
-                        <label style={{
-                          display: 'flex', alignItems: 'center', gap: '6px',
-                          padding: '6px 12px', borderRadius: '10px', fontSize: '12px',
-                          fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease',
-                          background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
-                          color: '#a5b4fc', whiteSpace: 'nowrap',
-                        }}>
-                          <Upload size={13} /> Import HTML
-                          <input type="file" accept=".html,.htm" onChange={handleHtmlImport} style={{ display: 'none' }} />
-                        </label>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span>Available Variables:</span>
+                        <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#38bdf8', fontFamily: 'monospace', cursor: 'pointer' }} title="Copy to use in HTML blocks">{`{{user_name}}`}</span>
+                        <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#38bdf8', fontFamily: 'monospace', cursor: 'pointer' }} title="Copy to use in HTML blocks">{`{{email}}`}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Editor body */}
                   {formData.channel === 'email' ? (
-                    editorMode === 'visual' ? (
-                      <div style={{ background: '#fff', borderRadius: '12px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <QuillEditor
-                          value={formData.content}
-                          onChange={val => setFormData(prev => ({ ...prev, content: val }))}
+                      <div style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', minHeight: '600px' }}>
+                        <EmailEditor
+                          ref={emailEditorRef}
+                          onLoad={onLoad}
+                          minHeight="600px"
+                          options={{
+                            displayMode: 'email',
+                            mergeTags: {
+                              user_name: {
+                                name: "User Name",
+                                value: "{{user_name}}"
+                              },
+                              email: {
+                                name: "Email Address",
+                                value: "{{email}}"
+                              }
+                            }
+                          }}
                         />
                       </div>
-                    ) : (
-                      <div style={{ background: 'rgba(15,23,42,0.8)', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.3)', boxShadow: '0 0 15px rgba(99,102,241,0.1)', overflow: 'auto' }}>
-                        <textarea
-                          rows={18}
-                          style={{ width: '100%', padding: '16px', background: 'transparent', border: 'none', color: '#38bdf8', fontFamily: "'Fira Code','Courier New',monospace", fontSize: '14px', lineHeight: '1.6', outline: 'none', resize: 'vertical', minHeight: '260px' }}
-                          placeholder="<!-- Paste or upload your custom HTML email template here -->"
-                          value={formData.content}
-                          onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                          required
-                        />
-                      </div>
-                    )
                   ) : (
                     <textarea
                       rows={8}
@@ -536,7 +615,7 @@ const CreateCampaignPage = () => {
                     <div className="cc-preview-test-row">
                       <button
                         type="button"
-                        onClick={() => setShowPreview(true)}
+                        onClick={handlePreviewClick}
                         style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(99,102,241,0.5)', background: 'rgba(99,102,241,0.08)', color: '#a5b4fc', cursor: 'pointer', fontWeight: '600', fontSize: '13px', whiteSpace: 'nowrap' }}
                       >
                         Preview Template
@@ -732,7 +811,11 @@ const CreateCampaignPage = () => {
                 <X size={22} />
               </button>
             </div>
-            <div className="preview-content" style={{ padding: '32px', overflow: 'auto', flex: 1, color: '#0f172a' }} dangerouslySetInnerHTML={{ __html: formData.content }} />
+            <iframe
+              title="Template Preview"
+              srcDoc={formData.content || '<p style="text-align:center;color:#94a3b8;font-family:sans-serif;margin-top:20px;">No content to preview</p>'}
+              style={{ width: '100%', height: '100%', border: 'none', flex: 1, background: '#fff', minHeight: '500px' }}
+            />
           </div>
         </div>
       )}

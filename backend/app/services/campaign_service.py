@@ -228,15 +228,27 @@ class CampaignService:
             conf = (project.email_config or {}) if project else {}
             gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
             
+            html_content = campaign.content or ""
+            subject_content = campaign.subject or campaign.name or ""
+            
+            user_name = contact.user_name or "User"
+            email_addr = contact.email or ""
+            
+            html_content = html_content.replace("{{user_name}}", user_name)
+            html_content = html_content.replace("{{email}}", email_addr)
+            
+            subject_content = subject_content.replace("{{user_name}}", user_name)
+            subject_content = subject_content.replace("{{email}}", email_addr)
+            
             import re
-            plain_text = re.sub(r'<[^>]*>', '', campaign.content or "")
+            plain_text = re.sub(r'<[^>]*>', '', html_content)
             
             result = await gateway.send_single(
                 recipient=contact.email,
                 message=plain_text,
                 context={
-                    "subject": campaign.subject or campaign.name,
-                    "html_body": campaign.content
+                    "subject": subject_content,
+                    "html_body": html_content
                 },
             )
             if not result["success"]: return False, result.get("error", "Unknown error")

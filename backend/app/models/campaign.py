@@ -43,6 +43,7 @@ class Campaign(Base):
     is_recurring = Column(Integer, default=0) # 0 = No, 1 = Yes
     recurrence_interval = Column(String, nullable=True) # daily, weekly, monthly
     social_platforms = Column(JSON, default=[]) # e.g. ['facebook', 'twitter']
+    design = Column(JSON, nullable=True) # For Unlayer/drag-and-drop JSON
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
