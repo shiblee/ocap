@@ -7,10 +7,22 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
-  const [step, setStep] = useState(1); // 1: Select File, 2: Map Fields, 3: Uploading
+  const [step, setStep] = useState(1); // 1: Select File, 2: Map Fields, 3: Uploading, 4: Success
+  const [uploadStats, setUploadStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { activeProject } = useProject();
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setFile(null);
+      setHeaders([]);
+      setMapping({});
+      setStep(1);
+      setUploadStats(null);
+      setError('');
+    }
+  }, [isOpen]);
 
   const downloadSampleCSV = () => {
     const csvContent = 
@@ -76,7 +88,8 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
       const res = await api.post('/contacts/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      onSuccess(res.data);
+      setUploadStats(res.data);
+      setStep(4);
     } catch (err) {
       setError(err.response?.data?.detail || "Upload failed. Please check your CSV format.");
       setStep(2);
@@ -247,6 +260,39 @@ const UploadModal = ({ isOpen, onClose, onSuccess }) => {
               <div className="animate-spin" style={{ width: '48px', height: '48px', border: '4px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 24px' }}></div>
               <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Processing Audience Data</h3>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>Please wait while we sync your contacts. This may take a moment for large files.</p>
+            </div>
+          )}
+
+          {step === 4 && uploadStats && (
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{ width: '64px', height: '64px', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                <CheckCircle2 size={32} color="#22c55e" />
+              </div>
+              <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>Import Successful!</h3>
+              <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px' }}>Your contacts have been processed and synced to your audience.</p>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '32px' }}>
+                <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Total Processed</p>
+                  <h4 style={{ fontSize: '24px', fontWeight: '700', color: '#6366f1' }}>{uploadStats.processed || 0}</h4>
+                </div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>New Contacts</p>
+                  <h4 style={{ fontSize: '24px', fontWeight: '700', color: '#22c55e' }}>{uploadStats.created || 0}</h4>
+                </div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Updated Contacts</p>
+                  <h4 style={{ fontSize: '24px', fontWeight: '700', color: '#eab308' }}>{uploadStats.updated || 0}</h4>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => onSuccess()}
+                className="vibrant-gradient"
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: '600', border: 'none', cursor: 'pointer' }}
+              >
+                Done
+              </button>
             </div>
           )}
         </div>

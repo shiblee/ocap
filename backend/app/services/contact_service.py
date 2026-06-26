@@ -105,17 +105,60 @@ class ContactService:
         limit: int = 100,
         search: str = None
     ):
-        query = select(Contact)
+        from sqlalchemy import func
+        
+        where_clauses = []
         if project_id:
-            query = query.where(Contact.project_id == project_id)
+            where_clauses.append(Contact.project_id == project_id)
             
         if search:
-            query = query.where(
+            where_clauses.append(
                 (Contact.email.ilike(f"%{search}%")) | 
                 (Contact.user_name.ilike(f"%{search}%")) |
                 (Contact.phone.ilike(f"%{search}%"))
             )
         
+        # Base count query
+        count_query = select(func.count(Contact.id))
+        for clause in where_clauses:
+            count_query = count_query.where(clause)
+            
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        # Web count query
+        web_query = select(func.count(Contact.id)).where(Contact.web_token.isnot(None))
+        for clause in where_clauses:
+            web_query = web_query.where(clause)
+        web_result = await db.execute(web_query)
+        active_web = web_result.scalar() or 0
+        
+        # iOS count query
+        ios_query = select(func.count(Contact.id)).where(Contact.ios_token.isnot(None))
+        for clause in where_clauses:
+            ios_query = ios_query.where(clause)
+        ios_result = await db.execute(ios_query)
+        active_ios = ios_result.scalar() or 0
+        
+        # Android count query
+        android_query = select(func.count(Contact.id)).where(Contact.android_token.isnot(None))
+        for clause in where_clauses:
+            android_query = android_query.where(clause)
+        android_result = await db.execute(android_query)
+        active_android = android_result.scalar() or 0
+        
+        query = select(Contact)
+        for clause in where_clauses:
+            query = query.where(clause)
+            
         query = query.offset(skip).limit(limit)
         result = await db.execute(query)
-        return result.scalars().all()
+        items = result.scalars().all()
+        
+        return {
+            "items": items, 
+            "total": total,
+            "active_web": active_web,
+            "active_ios": active_ios,
+            "active_android": active_android
+        }

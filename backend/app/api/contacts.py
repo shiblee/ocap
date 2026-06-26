@@ -120,3 +120,29 @@ async def delete_contact(
     await db.execute(delete(Contact).where(Contact.id == contact_id))
     await db.commit()
     return {"message": "Contact deleted successfully"}
+
+from pydantic import BaseModel
+from typing import List
+from app.core.security import verify_password
+
+class BulkDeleteRequest(BaseModel):
+    contact_ids: List[int]
+    password: str
+
+@router.post("/bulk-delete")
+async def bulk_delete_contacts(
+    request: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    from sqlalchemy import delete
+    from app.models.contact import Contact
+    
+    # Verify password
+    if not verify_password(request.password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+        
+    # Delete contacts
+    await db.execute(delete(Contact).where(Contact.id.in_(request.contact_ids)))
+    await db.commit()
+    return {"message": f"Successfully deleted {len(request.contact_ids)} contacts"}
