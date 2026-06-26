@@ -9,7 +9,7 @@ if backend_dir not in sys.path:
     sys.path.append(backend_dir)
 
 # Manually set vars if not env
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:1234@localhost:5432/ocap_db"
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:postgres@localhost:5432/ocap_db"
 
 from sqlalchemy import inspect, text
 from app.db.session import engine
