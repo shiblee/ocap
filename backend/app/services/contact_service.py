@@ -12,8 +12,10 @@ class ContactService:
         db: AsyncSession, 
         file_content: bytes, 
         mapping: Dict[str, str],
-        project_id: int
+        project_id: int,
+        filename: str = "upload.csv"
     ) -> Dict[str, Any]:
+        from app.models.import_log import ImportLog
         """
         Process CSV content with provided mapping.
         mapping example: {"csv_email_col": "email", "csv_name_col": "user_name"}
@@ -26,6 +28,8 @@ class ContactService:
             records_processed = 0
             records_created = 0
             records_updated = 0
+            records_failed = 0
+            errors = []
             
             # Inverse mapping for easier access
             # {"email": "csv_email_col", "user_name": "csv_name_col"}
@@ -43,6 +47,9 @@ class ContactService:
                 phone = clean_str(row.get(inv_mapping.get('phone')))
                 
                 if not email and not phone:
+                    records_failed += 1
+                    errors.append({"row": records_processed + 1, "error": "Missing email and phone"})
+                    records_processed += 1
                     continue
                 
                 # Check for existing contact (deduplication) - SCOPED TO PROJECT
@@ -85,12 +92,24 @@ class ContactService:
                 if records_processed % 100 == 0:
                     await db.commit()
             
+            # Create import log
+            import_log = ImportLog(
+                project_id=project_id,
+                filename=filename,
+                total_rows=records_processed,
+                imported_count=records_created + records_updated,
+                failed_count=records_failed,
+                error_details=errors
+            )
+            db.add(import_log)
             await db.commit()
+
             return {
                 "success": True,
                 "processed": records_processed,
                 "created": records_created,
-                "updated": records_updated
+                "updated": records_updated,
+                "failed": records_failed
             }
             
         except Exception as e:

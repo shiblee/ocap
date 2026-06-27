@@ -84,7 +84,9 @@ async def upload_contacts(
         mapping_dict = json.loads(mapping)
         content = await file.read()
         
-        result = await ContactService.process_csv_upload(db, content, mapping_dict, project_id)
+        result = await ContactService.process_csv_upload(
+            db, content, mapping_dict, project_id, filename=file.filename
+        )
         
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -92,6 +94,73 @@ async def upload_contacts(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{contact_id}/campaign-logs")
+async def get_contact_campaign_logs(
+    contact_id: int,
+    skip: int = Query(0),
+    limit: int = Query(10),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get campaign logs for a specific contact with pagination and search.
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import selectinload
+    from app.models.campaign import CampaignLog, Campaign
+    
+    query = select(CampaignLog).options(selectinload(CampaignLog.campaign)).where(CampaignLog.contact_id == contact_id)
+    count_query = select(func.count(CampaignLog.id)).where(CampaignLog.contact_id == contact_id)
+    
+    if search:
+        query = query.join(Campaign).where(Campaign.name.ilike(f"%{search}%"))
+        count_query = count_query.join(Campaign).where(Campaign.name.ilike(f"%{search}%"))
+        
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    query = query.order_by(CampaignLog.sent_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    logs = result.scalars().all()
+    
+    items = [
+        {
+            "id": log.id,
+            "campaign_id": log.campaign_id,
+            "campaign_name": log.campaign.name if log.campaign else "Unknown",
+            "campaign_channel": log.campaign.channel if log.campaign else "unknown",
+            "status": log.status,
+            "error_message": log.error_message,
+            "sent_at": log.sent_at
+        } for log in logs
+    ]
+    
+    return jsonable_encoder({
+        "items": items,
+        "total": total
+    })
+
+@router.get("/import-logs")
+async def get_import_logs(
+    project_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get import logs for a project.
+    """
+    from sqlalchemy import select
+    from app.models.import_log import ImportLog
+    
+    result = await db.execute(
+        select(ImportLog)
+        .where(ImportLog.project_id == project_id)
+        .order_by(ImportLog.created_at.desc())
+    )
+    logs = result.scalars().all()
+    return jsonable_encoder(logs)
 
 @router.get("/")
 async def list_contacts(

@@ -22,6 +22,7 @@ from app.models.contact import Contact # noqa
 from app.models.settings import SystemSettings # noqa
 from app.models.campaign import Campaign # noqa
 from app.models.project import Project # noqa
+from app.models.import_log import ImportLog # noqa
 from app.core.config import settings
 
 # add your model's MetaData object here

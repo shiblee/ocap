@@ -11,12 +11,15 @@ import {
   Edit2,
   Trash2,
   Lock,
-  CheckCircle2
+  CheckCircle2,
+  History
 } from 'lucide-react';
 import api from '../utils/api';
 import UploadModal from '../components/UploadModal';
 import AddContactModal from '../components/AddContactModal';
 import EditContactModal from '../components/EditContactModal';
+import ImportHistoryModal from '../components/ImportHistoryModal';
+import ContactCampaignHistoryModal from '../components/ContactCampaignHistoryModal';
 import { useProject } from '../context/ProjectContext';
 import { Briefcase } from 'lucide-react';
 
@@ -31,8 +34,11 @@ const Contacts = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState(null);
+  const [selectedHistoryContact, setSelectedHistoryContact] = useState(null);
   const [selectedContacts, setSelectedContacts] = useState([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isCampaignHistoryModalOpen, setIsCampaignHistoryModalOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState('');
@@ -45,6 +51,15 @@ const Contacts = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
   };
 
   useEffect(() => {
@@ -161,6 +176,14 @@ const Contacts = () => {
             </button>
           )}
           <button 
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="glass-effect nav-hover" 
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', border: '1px solid var(--border-glass)', color: 'white' }}
+          >
+            <History size={18} />
+            History
+          </button>
+          <button 
             onClick={() => setIsUploadModalOpen(true)}
             className="glass-effect nav-hover" 
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', border: '1px solid var(--border-glass)', color: 'white' }}
@@ -236,14 +259,15 @@ const Contacts = () => {
               <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600' }}>Contact Info</th>
               <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600' }}>Devices</th>
               <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600' }}>Status</th>
+              <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600' }}>Created At</th>
               <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" style={{ padding: '48px', textAlign: 'center' }}><div className="animate-spin" style={{ width: '30px', height: '30px', border: '3px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto' }}></div></td></tr>
+              <tr><td colSpan="7" style={{ padding: '48px', textAlign: 'center' }}><div className="animate-spin" style={{ width: '30px', height: '30px', border: '3px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto' }}></div></td></tr>
             ) : contacts.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>No contacts found in your audience.</td></tr>
+              <tr><td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>No contacts found in your audience.</td></tr>
             ) : contacts.map((contact) => (
               <tr key={contact.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: selectedContacts.includes(contact.id) ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }} className="nav-hover">
                 <td style={{ padding: '16px 24px' }}>
@@ -287,14 +311,24 @@ const Contacts = () => {
                     {contact.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
+                <td style={{ padding: '16px 24px', color: '#94a3b8', fontSize: '14px' }}>
+                  {formatDate(contact.created_at)}
+                </td>
                 <td style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <button 
-                      onClick={() => handleEdit(contact)}
-                      className="nav-hover" 
-                      style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => { setSelectedHistoryContact(contact); setIsCampaignHistoryModalOpen(true); }}
+                      style={{ background: 'rgba(34, 197, 94, 0.1)', border: 'none', color: '#22c55e', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex' }}
+                      title="View Campaign Logs"
                     >
-                      <Edit2 size={16} /> Edit
+                      <History size={16} />
+                    </button>
+                    <button 
+                      onClick={() => { setSelectedContact(contact); setIsEditModalOpen(true); }}
+                      style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', color: '#6366f1', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex' }}
+                      title="Edit Contact"
+                    >
+                      <Edit2 size={16} />
                     </button>
                   </div>
                 </td>
@@ -422,6 +456,8 @@ const Contacts = () => {
       <UploadModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { setIsUploadModalOpen(false); fetchContacts(); }} />
       <AddContactModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={() => { setIsAddModalOpen(false); fetchContacts(); }} />
       <EditContactModal isOpen={isEditModalOpen} contact={selectedContact} onClose={() => { setIsEditModalOpen(false); setSelectedContact(null); }} onSuccess={() => { setIsEditModalOpen(false); setSelectedContact(null); fetchContacts(); }} />
+      <ImportHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} />
+      <ContactCampaignHistoryModal isOpen={isCampaignHistoryModalOpen} onClose={() => { setIsCampaignHistoryModalOpen(false); setSelectedHistoryContact(null); }} contact={selectedHistoryContact} />
     </div>
   );
 };

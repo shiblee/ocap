@@ -124,6 +124,24 @@ async def stop_campaign(
         logger.error(f"CRITICAL ERROR in stop_campaign API: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+@router.post("/{campaign_id}/pause")
+async def pause_campaign(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Pause an active campaign. Using POST.
+    """
+    try:
+        success = await CampaignService.pause_campaign(db, campaign_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        return {"message": "Campaign paused successfully"}
+    except Exception as e:
+        logger.error(f"CRITICAL ERROR in pause_campaign API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 @router.post("/{campaign_id}/test")
 async def send_test_campaign_email(
     campaign_id: int,

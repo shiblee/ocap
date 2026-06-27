@@ -30,7 +30,8 @@ const StatusBadge = ({ status }) => {
     sending: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Sending', animate: true },
     completed: { bg: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', label: 'Completed' },
     failed: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Failed' },
-    stopped: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Stopped' }
+    stopped: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Stopped' },
+    paused: { bg: 'rgba(234, 179, 8, 0.1)', color: '#eab308', label: 'Paused' }
   };
 
   const style = styles[status] || styles.draft;
@@ -119,12 +120,21 @@ const Campaigns = () => {
   };
 
   const handleStop = async (id) => {
-    if (!window.confirm("Are you sure you want to stop this campaign?")) return;
+    if (!window.confirm("Are you sure you want to stop this campaign? It cannot be resumed.")) return;
     try {
       await api.post(`/campaigns/${id}/stop`);
       fetchCampaigns();
     } catch (err) {
       alert("Failed to stop campaign. " + (err.response?.data?.detail || ""));
+    }
+  };
+
+  const handlePause = async (id) => {
+    try {
+      await api.post(`/campaigns/${id}/pause`);
+      fetchCampaigns();
+    } catch (err) {
+      alert("Failed to pause campaign. " + (err.response?.data?.detail || ""));
     }
   };
 
@@ -243,13 +253,16 @@ const Campaigns = () => {
                   <td style={{ padding: '24px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                       {camp.status === 'sending' ? (
-                        <button onClick={() => handleStop(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Stop</button>
+                        <>
+                          <button onClick={() => handlePause(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #eab308', background: 'transparent', color: '#eab308', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Pause</button>
+                          <button onClick={() => handleStop(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Stop</button>
+                        </>
                       ) : (
-                        (camp.status === 'draft' || camp.status === 'stopped') && (
-                          <button onClick={() => handleStart(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #22c55e', background: 'transparent', color: '#22c55e', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>{camp.status === 'stopped' ? 'Resume' : 'Start'}</button>
+                        (camp.status === 'draft' || camp.status === 'stopped' || camp.status === 'paused') && (
+                          <button onClick={() => handleStart(camp.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #22c55e', background: 'transparent', color: '#22c55e', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>{(camp.status === 'stopped' || camp.status === 'paused') ? 'Restart' : 'Start'}</button>
                         )
                       )}
-                      {(camp.status === 'draft' || camp.status === 'stopped' || camp.status === 'scheduled') && (
+                      {(camp.status === 'draft' || camp.status === 'stopped' || camp.status === 'paused' || camp.status === 'scheduled') && (
                         <button 
                           onClick={() => handleEdit(camp)} 
                           style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a5b4fc', cursor: 'pointer' }}
@@ -259,7 +272,6 @@ const Campaigns = () => {
                         </button>
                       )}
                       <button onClick={() => setViewLogsCampaignId(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }} title="View Logs"><List size={16} /></button>
-                      <button onClick={() => handleDelete(camp.id)} style={{ padding: '6px 8px', borderRadius: '8px', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer' }} title="Delete Campaign"><X size={16} /></button>
                     </div>
                   </td>
                 </tr>

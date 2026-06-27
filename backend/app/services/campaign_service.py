@@ -110,6 +110,22 @@ class CampaignService:
             raise e
 
     @staticmethod
+    async def pause_campaign(db: AsyncSession, campaign_id: int):
+        try:
+            result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+            campaign = result.scalar_one_or_none()
+            if not campaign:
+                return False
+                
+            campaign.status = CampaignStatus.paused
+            await db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error pausing campaign {campaign_id}: {e}")
+            await db.rollback()
+            raise e
+
+    @staticmethod
     async def delete_campaign(db: AsyncSession, campaign_id: int):
         result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
         campaign = result.scalar_one_or_none()
@@ -177,7 +193,7 @@ class CampaignService:
 
                 for contact in pending_contacts:
                     await db.refresh(campaign)
-                    if campaign.status == CampaignStatus.stopped:
+                    if campaign.status in [CampaignStatus.stopped, CampaignStatus.paused]:
                         break
 
                     try:
@@ -203,7 +219,7 @@ class CampaignService:
                         if sleep_time > 0:
                             await asyncio.sleep(sleep_time)
 
-            if campaign.status != CampaignStatus.stopped:
+            if campaign.status not in [CampaignStatus.stopped, CampaignStatus.paused]:
                 if campaign.is_recurring and campaign.scheduled_at:
                     interval = campaign.recurrence_interval or "daily"
                     if interval == "daily":
