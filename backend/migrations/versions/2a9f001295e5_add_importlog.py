@@ -1,7 +1,7 @@
 """Add ImportLog
 
 Revision ID: 2a9f001295e5
-Revises: ff22a270b335
+Revises: 87f61c3132e0
 Create Date: 2026-06-27 00:05:35.860476
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '2a9f001295e5'
-down_revision: Union[str, Sequence[str], None] = 'ff22a270b335'
+down_revision: Union[str, Sequence[str], None] = '87f61c3132e0'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
