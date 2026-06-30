@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, History, XCircle, CheckCircle, Search, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { X, History, XCircle, CheckCircle, Search, ChevronLeft, ChevronRight, User, Clock, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
 import { formatDateTimeIST } from '../utils/dateFormatter';
 
@@ -112,13 +112,13 @@ const ContactCampaignHistoryModal = ({ isOpen, onClose, contact }) => {
                       {formatDateTimeIST(log.sent_at)}
                     </td>
                     <td style={{ padding: '16px 20px' }}>
-                      {log.status === 'success' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', fontSize: '13px', fontWeight: '600' }}>
-                          <CheckCircle size={14} /> Success
+                      {['success', 'delivered', 'sent_to_ses'].includes(log.status) ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', background: log.status === 'sent_to_ses' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(34, 197, 94, 0.1)', color: log.status === 'sent_to_ses' ? '#3b82f6' : '#22c55e', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize' }}>
+                          {log.status === 'sent_to_ses' ? <Clock size={14} /> : <CheckCircle size={14} />} {log.status === 'sent_to_ses' ? 'Sent (AWS)' : log.status}
                         </span>
                       ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px', fontWeight: '600' }}>
-                          <XCircle size={14} /> Failed
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize' }}>
+                          {log.status === 'failed' ? <XCircle size={14} /> : <AlertCircle size={14} />} {log.status}
                         </span>
                       )}
                     </td>
