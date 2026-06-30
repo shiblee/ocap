@@ -25,7 +25,7 @@ We have successfully implemented the AWS SES Webhook tracking system for trackin
 > 1. Go to **AWS SNS (Simple Notification Service)** and create a new Standard Topic (e.g., `ocap-ses-notifications`).
 > 2. Create a Subscription for that topic:
 >    - Protocol: `HTTPS`
->    - Endpoint: `https://your-domain.com/api/v1/webhooks/aws-ses` (Replace `your-domain.com` with your actual backend URL).
+>    - Endpoint: `https://justseva.info/api/v1/webhooks/aws-ses`
 >    - Check the "Enable raw message delivery" box if available, otherwise it's fine.
 > 3. Go to **AWS SES (Simple Email Service)** -> Configuration -> Verified Identities -> Click on your verified domain or email.
 > 4. Go to the **Notifications** tab and set the SNS Topic you created in step 1 for:
