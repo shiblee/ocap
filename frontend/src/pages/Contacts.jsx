@@ -22,6 +22,7 @@ import ImportHistoryModal from '../components/ImportHistoryModal';
 import ContactCampaignHistoryModal from '../components/ContactCampaignHistoryModal';
 import { useProject } from '../context/ProjectContext';
 import { Briefcase } from 'lucide-react';
+import { formatDateIST } from '../utils/dateFormatter';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -53,14 +54,7 @@ const Contacts = () => {
     }, 3000);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const d = new Date(dateString);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
+
 
   useEffect(() => {
     fetchContacts();
@@ -312,7 +306,7 @@ const Contacts = () => {
                   </span>
                 </td>
                 <td style={{ padding: '16px 24px', color: '#94a3b8', fontSize: '14px' }}>
-                  {formatDate(contact.created_at)}
+                  {formatDateIST(contact.created_at)}
                 </td>
                 <td style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', gap: '12px' }}>

@@ -151,7 +151,7 @@ class CampaignService:
 
             if campaign.channel == CampaignChannel.social_post:
                 try:
-                    success, error_msg = await cls._dispatch_message(campaign, None, project)
+                    success, error_msg, msg_id = await cls._dispatch_message(campaign, None, project)
                     campaign.total_contacts = 1
                     campaign.sent_count = 1 if success else 0
                     campaign.failed_count = 0 if success else 1
@@ -159,8 +159,9 @@ class CampaignService:
                     log_entry = CampaignLog(
                         campaign_id=campaign.id,
                         contact_id=None,
-                        status="success" if success else "failed",
-                        error_message=error_msg
+                        status="sent_to_ses" if success and msg_id else ("success" if success else "failed"),
+                        error_message=error_msg,
+                        message_id=msg_id
                     )
                     db.add(log_entry)
                 except Exception as e:
@@ -197,12 +198,13 @@ class CampaignService:
                         break
 
                     try:
-                        success, error_msg = await cls._dispatch_message(campaign, contact, project)
+                        success, error_msg, msg_id = await cls._dispatch_message(campaign, contact, project)
                         log_entry = CampaignLog(
                             campaign_id=campaign.id,
                             contact_id=contact.id,
-                            status="success" if success else "failed",
-                            error_message=error_msg
+                            status="sent_to_ses" if success and msg_id else ("success" if success else "failed"),
+                            error_message=error_msg,
+                            message_id=msg_id
                         )
                         db.add(log_entry)
                         if success: campaign.sent_count += 1
@@ -238,9 +240,9 @@ class CampaignService:
                 await db.commit()
 
     @staticmethod
-    async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None) -> tuple[bool, str]:
+    async def _dispatch_message(campaign: Campaign, contact: Contact, project: Project = None) -> tuple[bool, str, str | None]:
         if campaign.channel == CampaignChannel.email:
-            if not contact.email: return False, "No email address"
+            if not contact.email: return False, "No email address", None
             conf = (project.email_config or {}) if project else {}
             gateway = SESGateway(conf) if conf.get("provider") == "ses" else EmailGateway(conf)
             
@@ -267,8 +269,8 @@ class CampaignService:
                     "html_body": html_content
                 },
             )
-            if not result["success"]: return False, result.get("error", "Unknown error")
-            return True, None
+            if not result["success"]: return False, result.get("error", "Unknown error"), None
+            return True, None, result.get("message_id")
 
         if campaign.channel == CampaignChannel.social_post:
             content = campaign.content
@@ -277,29 +279,38 @@ class CampaignService:
                 content = await AIService.generate_social_post(f"{project.description or project.name}", api_key=ai_conf.get("gemini_api_key"))
 
             platforms = campaign.social_platforms or []
-            if not platforms: return False, "No platforms selected"
+            if not platforms: return False, "No platforms selected", None
             
             gateway = SocialGateway(project.social_config or {})
             results = []
             for platform in platforms:
                 success, msg = await gateway.post_to_platform(platform, content)
                 results.append(f"{platform}: {msg}")
-            return True, " | ".join(results)
+            return True, " | ".join(results), None
 
         if campaign.channel == CampaignChannel.whatsapp:
-            if not contact.phone: return False, "No phone number"
+            if not contact.phone: return False, "No phone number", None
             conf = (project.whatsapp_config or {}) if project else {}
             gateway = WatiGateway(conf)
             result = await gateway.send_single(recipient=contact.phone, message=campaign.content)
-            if not result["success"]: return False, result.get("error", "Unknown WhatsApp error")
-            return True, None
+            if not result["success"]: return False, result.get("error", "Unknown WhatsApp error"), None
+            return True, None, None
 
         await asyncio.sleep(0.01)
-        return True, None
+        return True, None, None
 
     @staticmethod
     async def get_campaign_logs(db: AsyncSession, campaign_id: int, skip: int = 0, limit: int = 50):
         try:
+            count_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id)
+            total_count = (await db.execute(count_query)).scalar()
+            
+            success_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status == "success")
+            success_count = (await db.execute(success_query)).scalar()
+            
+            failed_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status == "failed")
+            failed_count = (await db.execute(failed_query)).scalar()
+
             query = select(CampaignLog, Contact).outerjoin(Contact, CampaignLog.contact_id == Contact.id).where(CampaignLog.campaign_id == campaign_id).order_by(CampaignLog.sent_at.desc()).offset(skip).limit(limit)
             result = await db.execute(query)
             logs = []
@@ -315,9 +326,15 @@ class CampaignService:
                     "contact_phone": getattr(contact, 'phone', 'N/A') if contact else 'N/A',
                     "contact_name": getattr(contact, 'user_name', 'N/A') if contact else 'N/A'
                 })
-            return logs
+            return {
+                "items": logs,
+                "total": total_count,
+                "success_count": success_count,
+                "failed_count": failed_count
+            }
         except Exception as e:
-            return []
+            logger.error(f"Error fetching campaign logs: {e}")
+            return {"items": [], "total": 0, "success_count": 0, "failed_count": 0}
 
     @classmethod
     async def send_test_email(cls, db: AsyncSession, campaign_id: int, test_email: str) -> dict:

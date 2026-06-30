@@ -22,6 +22,7 @@ import CampaignLogsModal from '../components/CampaignLogsModal';
 import { useProject } from '../context/ProjectContext';
 import { Briefcase } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatDateIST } from '../utils/dateFormatter';
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -248,7 +249,7 @@ const Campaigns = () => {
                     </div>
                   </td>
                   <td style={{ padding: '24px', color: '#64748b', fontSize: '14px' }}>
-                    {new Date(camp.created_at + 'Z').toLocaleDateString()}
+                    {formatDateIST(camp.created_at)}
                   </td>
                   <td style={{ padding: '24px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

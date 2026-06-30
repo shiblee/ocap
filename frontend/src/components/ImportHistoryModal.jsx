@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, FileText, AlertCircle, CheckCircle2, History, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
+import { formatDateTimeIST } from '../utils/dateFormatter';
 
 const ImportHistoryModal = ({ isOpen, onClose }) => {
   const [logs, setLogs] = useState([]);
@@ -32,16 +33,7 @@ const ImportHistoryModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const d = new Date(dateString);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}-${month}-${year} ${hours}:${minutes}`;
-  };
+
 
   if (!isOpen) return null;
 
@@ -131,7 +123,7 @@ const ImportHistoryModal = ({ isOpen, onClose }) => {
                         <span style={{ fontWeight: '500' }}>{log.filename}</span>
                       </td>
                       <td style={{ padding: '16px 20px', color: '#cbd5e1', fontSize: '14px' }}>
-                        {formatDate(log.created_at)}
+                        {formatDateTimeIST(log.created_at)}
                       </td>
                       <td style={{ padding: '16px 20px', fontWeight: '600' }}>
                         {log.total_rows}

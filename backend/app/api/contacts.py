@@ -145,22 +145,33 @@ async def get_contact_campaign_logs(
 @router.get("/import-logs")
 async def get_import_logs(
     project_id: int = Query(...),
+    skip: int = Query(0),
+    limit: int = Query(5),
+    search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """
-    Get import logs for a project.
+    Get import logs for a project with pagination and search.
     """
-    from sqlalchemy import select
+    from sqlalchemy import select, func
     from app.models.import_log import ImportLog
     
+    query = select(ImportLog).where(ImportLog.project_id == project_id)
+    count_query = select(func.count(ImportLog.id)).where(ImportLog.project_id == project_id)
+    
+    if search:
+        query = query.where(ImportLog.filename.ilike(f"%{search}%"))
+        count_query = count_query.where(ImportLog.filename.ilike(f"%{search}%"))
+        
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
     result = await db.execute(
-        select(ImportLog)
-        .where(ImportLog.project_id == project_id)
-        .order_by(ImportLog.created_at.desc())
+        query.order_by(ImportLog.created_at.desc()).offset(skip).limit(limit)
     )
     logs = result.scalars().all()
-    return jsonable_encoder(logs)
+    return jsonable_encoder({"items": logs, "total": total})
 
 @router.get("/")
 async def list_contacts(
@@ -168,13 +179,14 @@ async def list_contacts(
     limit: int = Query(100),
     search: Optional[str] = Query(None),
     project_id: Optional[int] = Query(None),
+    is_active: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """
-    List all contacts with search, pagination, and project filter.
+    List all contacts with search, pagination, project filter, and is_active filter.
     """
-    contacts = await ContactService.get_contacts(db, project_id, skip, limit, search)
+    contacts = await ContactService.get_contacts(db, project_id, skip, limit, search, is_active)
     return jsonable_encoder(contacts)
 
 @router.delete("/{contact_id}")

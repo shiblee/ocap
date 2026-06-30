@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, History, XCircle, CheckCircle, Search, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import api from '../utils/api';
+import { formatDateTimeIST } from '../utils/dateFormatter';
 
 const ContactCampaignHistoryModal = ({ isOpen, onClose, contact }) => {
   const [logs, setLogs] = useState([]);
@@ -37,16 +38,7 @@ const ContactCampaignHistoryModal = ({ isOpen, onClose, contact }) => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const d = new Date(dateString);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}-${month}-${year} ${hours}:${minutes}`;
-  };
+
 
   if (!isOpen || !contact) return null;
 
@@ -117,7 +109,7 @@ const ContactCampaignHistoryModal = ({ isOpen, onClose, contact }) => {
                       {log.campaign_channel}
                     </td>
                     <td style={{ padding: '16px 20px', color: '#cbd5e1', fontSize: '14px' }}>
-                      {formatDate(log.sent_at)}
+                      {formatDateTimeIST(log.sent_at)}
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       {log.status === 'success' ? (

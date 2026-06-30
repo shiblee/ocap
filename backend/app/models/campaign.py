@@ -60,8 +60,9 @@ class CampaignLog(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
     contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="CASCADE"), nullable=True)
     
-    status = Column(String, nullable=False) # "success" or "failed"
+    status = Column(String, nullable=False) # "success", "failed", "sent_to_ses", "delivered", "bounced"
     error_message = Column(String, nullable=True)
+    message_id = Column(String, nullable=True, index=True) # AWS SES MessageId
     sent_at = Column(DateTime, default=datetime.utcnow)
 
     campaign = relationship("Campaign", back_populates="logs")

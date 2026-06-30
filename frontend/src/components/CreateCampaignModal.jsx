@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, Mail, MessageSquare, Globe, Smartphone, ChevronRight, ChevronLeft, Save, AlertCircle, Code, Edit3, Upload, Zap } from 'lucide-react';
 import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
+import { formatForDateTimeInput, parseFromDateTimeInput } from '../utils/dateFormatter';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import { EmailEditor } from 'react-email-editor';
@@ -117,7 +118,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
         channel: campaign.channel || 'email',
         subject: campaign.subject || '',
         content: campaign.content || '',
-        scheduled_at: campaign.scheduled_at ? new Date(campaign.scheduled_at).toISOString().slice(0, 16) : '',
+        scheduled_at: formatForDateTimeInput(campaign.scheduled_at),
         social_platforms: campaign.social_platforms || [],
         is_recurring: campaign.is_recurring === 1,
         recurrence_interval: campaign.recurrence_interval || 'daily',
@@ -235,7 +236,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
           await api.post(`/campaigns/${savedCampaignId}/start`);
         } else if (launchMode === 'schedule' && formData.scheduled_at) {
           await api.post(`/campaigns/${savedCampaignId}/schedule`, {
-            scheduled_at: new Date(formData.scheduled_at).toISOString()
+            scheduled_at: parseFromDateTimeInput(formData.scheduled_at)
           });
         }
 
@@ -593,7 +594,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSuccess, campaign }) => {
                     value={formData.scheduled_at}
                     onChange={(e) => setFormData({...formData, scheduled_at: e.target.value})}
                     required={launchMode === 'schedule'}
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={formatForDateTimeInput(new Date().toISOString())}
                   />
                 </div>
               )}

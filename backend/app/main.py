@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.api import auth, settings as app_settings, contacts, campaigns, analytics, projects, ai
+from app.api import auth, settings as app_settings, contacts, campaigns, analytics, projects, ai, webhooks
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.scheduler_service import run_scheduler
 import asyncio
@@ -37,6 +37,7 @@ app.include_router(campaigns.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
+app.include_router(webhooks.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():

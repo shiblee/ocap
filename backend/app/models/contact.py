@@ -10,6 +10,7 @@ class Contact(Base, TimestampMixin):
     email = Column(String, index=True, nullable=True)
     phone = Column(String, index=True, nullable=True)
     is_active = Column(Boolean, default=True)
+    inactive_reason = Column(String, nullable=True)
     
     # Project association
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)

@@ -1,24 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Clock, Search, User, Phone, Mail, Send } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Clock, Search, User, Phone, Mail, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
+import { formatDateTimeIST } from '../utils/dateFormatter';
 
 const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [successCount, setSuccessCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
+  const limit = 50;
 
   useEffect(() => {
     if (isOpen && campaignId) {
       fetchLogs();
     }
-  }, [isOpen, campaignId]);
+  }, [isOpen, campaignId, page]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPage(0);
+      setLogs([]);
+      setTotalCount(0);
+      setSuccessCount(0);
+      setFailedCount(0);
+    }
+  }, [isOpen]);
 
   const fetchLogs = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get(`/campaigns/${campaignId}/logs`);
-      setLogs(res.data);
+      const res = await api.get(`/campaigns/${campaignId}/logs?skip=${page * limit}&limit=${limit}`);
+      if (Array.isArray(res.data)) {
+        setLogs(res.data);
+        setTotalCount(res.data.length);
+        setSuccessCount(res.data.filter(log => log.status === 'success').length);
+        setFailedCount(res.data.filter(log => log.status === 'failed').length);
+      } else {
+        setLogs(res.data.items || []);
+        setTotalCount(res.data.total || 0);
+        setSuccessCount(res.data.success_count || 0);
+        setFailedCount(res.data.failed_count || 0);
+      }
     } catch (err) {
       setError("Failed to load campaign logs.");
     } finally {
@@ -27,10 +53,6 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
   };
 
   if (!isOpen) return null;
-
-  const successCount = logs.filter(log => log.status === 'success').length;
-  const failedCount = logs.filter(log => log.status === 'failed').length;
-  const totalCount = logs.length;
 
   return (
     <div style={{
@@ -199,12 +221,64 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
                       {log.error_message || '-'}
                     </td>
                     <td style={{ padding: '16px', color: '#94a3b8', fontSize: '13px', textAlign: 'right' }}>
-                      {new Date(log.sent_at).toLocaleString()}
+                      {formatDateTimeIST(log.sent_at)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* Pagination Controls */}
+          {!loading && !error && totalCount > limit && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '20px',
+              paddingTop: '20px',
+              borderTop: '1px solid rgba(255,255,255,0.05)'
+            }}>
+              <div style={{ color: '#94a3b8', fontSize: '14px' }}>
+                Showing {Math.min(page * limit + 1, totalCount)} to {Math.min((page + 1) * limit, totalCount)} of {totalCount}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  style={{
+                    background: page === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
+                    color: page === 0 ? '#475569' : '#fff',
+                    border: 'none',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    cursor: page === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <ChevronLeft size={16} /> Prev
+                </button>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={(page + 1) * limit >= totalCount}
+                  style={{
+                    background: (page + 1) * limit >= totalCount ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
+                    color: (page + 1) * limit >= totalCount ? '#475569' : '#fff',
+                    border: 'none',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    cursor: (page + 1) * limit >= totalCount ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  Next <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

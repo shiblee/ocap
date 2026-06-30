@@ -122,7 +122,8 @@ class ContactService:
         project_id: int = None,
         skip: int = 0, 
         limit: int = 100,
-        search: str = None
+        search: str = None,
+        is_active: bool = None
     ):
         from sqlalchemy import func
         
@@ -136,6 +137,9 @@ class ContactService:
                 (Contact.user_name.ilike(f"%{search}%")) |
                 (Contact.phone.ilike(f"%{search}%"))
             )
+            
+        if is_active is not None:
+            where_clauses.append(Contact.is_active == is_active)
         
         # Base count query
         count_query = select(func.count(Contact.id))

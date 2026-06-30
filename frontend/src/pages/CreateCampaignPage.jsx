@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { useProject } from '../context/ProjectContext';
+import { formatForDateTimeInput, parseFromDateTimeInput } from '../utils/dateFormatter';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import { EmailEditor } from 'react-email-editor';
@@ -177,9 +178,7 @@ const CreateCampaignPage = () => {
           channel: camp.channel || 'email',
           subject: camp.subject || '',
           content: camp.content || '',
-          scheduled_at: camp.scheduled_at
-            ? new Date(camp.scheduled_at).toISOString().slice(0, 16)
-            : '',
+          scheduled_at: formatForDateTimeInput(camp.scheduled_at),
           social_platforms: camp.social_platforms || [],
           is_recurring: camp.is_recurring === 1,
           recurrence_interval: camp.recurrence_interval || 'daily',
@@ -289,7 +288,7 @@ const CreateCampaignPage = () => {
           await api.post(`/campaigns/${id}/start`);
         } else if (launchMode === 'schedule' && formData.scheduled_at) {
           await api.post(`/campaigns/${id}/schedule`, {
-            scheduled_at: new Date(formData.scheduled_at).toISOString(),
+            scheduled_at: parseFromDateTimeInput(formData.scheduled_at),
           });
         }
 
@@ -703,7 +702,7 @@ const CreateCampaignPage = () => {
                         value={formData.scheduled_at}
                         onChange={e => setFormData(prev => ({ ...prev, scheduled_at: e.target.value }))}
                         required={launchMode === 'schedule'}
-                        min={new Date().toISOString().slice(0, 16)}
+                        min={formatForDateTimeInput(new Date().toISOString())}
                         className="cc-datetime-input"
                       />
                     </div>
