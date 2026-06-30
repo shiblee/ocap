@@ -305,10 +305,10 @@ class CampaignService:
             count_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id)
             total_count = (await db.execute(count_query)).scalar()
             
-            success_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status == "success")
+            success_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status.in_(["success", "sent_to_ses", "delivered"]))
             success_count = (await db.execute(success_query)).scalar()
             
-            failed_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status == "failed")
+            failed_query = select(func.count(CampaignLog.id)).where(CampaignLog.campaign_id == campaign_id, CampaignLog.status.in_(["failed", "bounced", "complained"]))
             failed_count = (await db.execute(failed_query)).scalar()
 
             query = select(CampaignLog, Contact).outerjoin(Contact, CampaignLog.contact_id == Contact.id).where(CampaignLog.campaign_id == campaign_id).order_by(CampaignLog.sent_at.desc()).offset(skip).limit(limit)

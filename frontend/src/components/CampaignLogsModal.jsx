@@ -37,8 +37,8 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
       if (Array.isArray(res.data)) {
         setLogs(res.data);
         setTotalCount(res.data.length);
-        setSuccessCount(res.data.filter(log => log.status === 'success').length);
-        setFailedCount(res.data.filter(log => log.status === 'failed').length);
+        setSuccessCount(res.data.filter(log => ['success', 'sent_to_ses', 'delivered'].includes(log.status)).length);
+        setFailedCount(res.data.filter(log => ['failed', 'bounced', 'complained'].includes(log.status)).length);
       } else {
         setLogs(res.data.items || []);
         setTotalCount(res.data.total || 0);
@@ -207,13 +207,13 @@ const CampaignLogsModal = ({ isOpen, onClose, campaignId }) => {
                       </div>
                     </td>
                     <td style={{ padding: '16px' }}>
-                      {log.status === 'success' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600' }}>
-                          <CheckCircle size={14} /> Success
+                      {['success', 'delivered', 'sent_to_ses'].includes(log.status) ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: log.status === 'sent_to_ses' ? '#3b82f6' : '#22c55e', background: log.status === 'sent_to_ses' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(34, 197, 94, 0.1)', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize' }}>
+                          {log.status === 'sent_to_ses' ? <Clock size={14} /> : <CheckCircle size={14} />} {log.status === 'sent_to_ses' ? 'Sent (AWS)' : log.status}
                         </span>
                       ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600' }}>
-                          <AlertCircle size={14} /> Failed
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize' }}>
+                          <AlertCircle size={14} /> {log.status}
                         </span>
                       )}
                     </td>
